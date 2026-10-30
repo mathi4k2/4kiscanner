@@ -1,0 +1,6 @@
+{
+  "name": "CryptoBridge Triage - Soporte Web3",
+  "description": "Pre-examinador interno de transacciones de puente Polygon y Optimism para soporte cripto con semáforo y respuestas automáticas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
