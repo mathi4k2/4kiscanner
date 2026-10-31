@@ -1181,6 +1181,157 @@ def scan_destination_radar(
     return result
 
 
+def scan_destination_radar_with_fallback(
+    api_key: str,
+    primary_chain: str,
+    origin_chain: str,
+    destination_wallet: str,
+    origin_timestamp: int,
+    origin_assets: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Search the selected network first, then other supported destination networks."""
+    searches: List[Dict[str, Any]] = []
+    primary_result: Optional[Dict[str, Any]] = None
+
+    try:
+        primary_result = scan_destination_radar(
+            api_key,
+            primary_chain,
+            destination_wallet,
+            origin_timestamp,
+            origin_assets,
+            origin_chain=origin_chain,
+        )
+        searches.append(
+            {
+                "chain": primary_chain,
+                "state": primary_result.get("state", "unknown"),
+                "transfers_checked": sum(
+                    window.get("transfers_checked", 0)
+                    for window in primary_result.get("windows", [])
+                    if isinstance(window, dict)
+                ),
+                "full_48h_available": primary_result.get("full_48h_available"),
+            }
+        )
+    except RpcError as error:
+        searches.append(
+            {
+                "chain": primary_chain,
+                "state": "error",
+                "error": str(error),
+                "transfers_checked": 0,
+            }
+        )
+
+    if primary_result is not None and primary_result.get("state") == "found":
+        primary_result.update(
+            {
+                "primary_chain": primary_chain,
+                "matched_chain": primary_chain,
+                "fallback_match": False,
+                "fallback_searches": searches,
+                "global_search_state": "primary_match",
+            }
+        )
+        return primary_result
+
+    fallback_results: List[Dict[str, Any]] = []
+    for fallback_chain in CHAINS:
+        if fallback_chain in {origin_chain, primary_chain}:
+            continue
+        try:
+            fallback_result = scan_destination_radar(
+                api_key,
+                fallback_chain,
+                destination_wallet,
+                origin_timestamp,
+                origin_assets,
+                origin_chain=origin_chain,
+            )
+        except RpcError as error:
+            searches.append(
+                {
+                    "chain": fallback_chain,
+                    "state": "error",
+                    "error": str(error),
+                    "transfers_checked": 0,
+                }
+            )
+            continue
+
+        fallback_result["search_chain"] = fallback_chain
+        fallback_results.append(fallback_result)
+        searches.append(
+            {
+                "chain": fallback_chain,
+                "state": fallback_result.get("state", "unknown"),
+                "transfers_checked": sum(
+                    window.get("transfers_checked", 0)
+                    for window in fallback_result.get("windows", [])
+                    if isinstance(window, dict)
+                ),
+                "full_48h_available": fallback_result.get("full_48h_available"),
+            }
+        )
+        if fallback_result.get("state") == "found":
+            fallback_result.update(
+                {
+                    "primary_chain": primary_chain,
+                    "matched_chain": fallback_chain,
+                    "fallback_match": True,
+                    "fallback_searches": searches,
+                    "global_search_state": "fallback_match",
+                    "primary_state": (
+                        primary_result.get("state", "error")
+                        if primary_result is not None
+                        else "error"
+                    ),
+                    "primary_error": (
+                        searches[0].get("error")
+                        if searches[0].get("state") == "error"
+                        else None
+                    ),
+                }
+            )
+            return fallback_result
+
+    # A complete global negative requires a completed, non-partial search on
+    # every network. An RPC error, a waiting chain head, or a capped page set
+    # must not be reported as proof that no destination transfer exists.
+    complete_no_match_states = {"not_found", "candidates"}
+    all_searches_complete = all(
+        search.get("state") in complete_no_match_states for search in searches
+    )
+    global_state = "no_match_global" if all_searches_complete else "fallback_incomplete"
+
+    result = dict(primary_result or {})
+    result.update(
+        {
+            "state": global_state,
+            "primary_chain": primary_chain,
+            "matched_chain": None,
+            "fallback_match": False,
+            "fallback_searches": searches,
+            "global_search_state": global_state,
+        }
+    )
+    if primary_result is None:
+        result.setdefault("windows", [])
+        result.setdefault("candidates", [])
+        result.setdefault("transfer", None)
+        result.setdefault("swap_matching_enabled", True)
+    if primary_result is not None:
+        result["candidates"] = list(primary_result.get("candidates", []))
+    for fallback_result in fallback_results:
+        for candidate in fallback_result.get("candidates", []):
+            if isinstance(candidate, dict) and len(result["candidates"]) < 25:
+                candidate["candidate_chain"] = fallback_result["search_chain"]
+                result["candidates"].append(candidate)
+    result["searched_networks"] = [search["chain"] for search in searches]
+    return result
+
+
 def address_from_topic(topic: Any) -> Optional[str]:
     if not isinstance(topic, str) or len(topic) != 66:
         return None
@@ -2167,9 +2318,13 @@ def diagnose_transaction(
 def classify_operation(result: Dict[str, Any]) -> Dict[str, str]:
     """Classify a confirmed operation from its route and radar asset match."""
     source_chain = str(result.get("chain") or "Unknown")
-    destination_chain = str(result.get("destination_chain") or "Unknown")
-    same_network = source_chain.casefold() == destination_chain.casefold()
     radar = result.get("radar")
+    destination_chain = str(
+        radar.get("matched_chain") or result.get("destination_chain") or "Unknown"
+        if isinstance(radar, dict)
+        else result.get("destination_chain") or "Unknown"
+    )
+    same_network = source_chain.casefold() == destination_chain.casefold()
     transfer = (
         radar.get("transfer")
         if isinstance(radar, dict) and radar.get("state") == "found"
@@ -2277,6 +2432,11 @@ def build_audit_report(result: Dict[str, Any]) -> str:
     if not isinstance(classification, dict):
         classification = classify_operation(result)
     transfer: Dict[str, Any] = {}
+    transfer_chain = (
+        radar.get("matched_chain")
+        if isinstance(radar, dict)
+        else None
+    ) or result.get("destination_chain")
     historical_value_summary = "Historical USD valuation: unavailable."
     reference_summary = [
         "Status: not checked",
@@ -2287,7 +2447,7 @@ def build_audit_report(result: Dict[str, Any]) -> str:
         match_type = radar.get("match_type", transfer.get("match_type", "same_token"))
         destination_hash = transfer.get("hash")
         destination_url = build_transaction_explorer_url(
-            result.get("destination_chain"),
+            transfer_chain,
             destination_hash,
         )
         destination_hash_display = (
@@ -2363,6 +2523,24 @@ def build_audit_report(result: Dict[str, Any]) -> str:
                 + ("yes" if radar.get("full_48h_available") else "no")
             ),
         ]
+    elif isinstance(radar, dict) and radar.get("state") == "no_match_global":
+        radar_summary = [
+            "NO GLOBAL MATCH: no matching incoming transfer was found on the selected network or any other supported destination network within the inspected time windows.",
+            f"Networks searched: {', '.join(radar.get('searched_networks', [])) or 'N/A'}",
+            f"Unmatched incoming candidates for review: {len(radar.get('candidates', []))}",
+        ]
+    elif isinstance(radar, dict) and radar.get("state") == "fallback_incomplete":
+        radar_summary = [
+            "GLOBAL SEARCH INCOMPLETE: no match was confirmed, but one or more networks could not be fully searched.",
+            f"Networks searched: {', '.join(radar.get('searched_networks', [])) or 'N/A'}",
+        ]
+        for search in radar.get("fallback_searches", []):
+            if search.get("state") in {"error", "incomplete", "waiting_for_destination_chain"}:
+                radar_summary.append(
+                    f"{search.get('chain', 'Unknown network')}: "
+                    f"{search.get('state')} "
+                    f"{escape_markdown_text(search.get('error', ''))}".rstrip()
+                )
     elif isinstance(radar, dict) and radar.get("state") == "waiting_for_destination_chain":
         radar_summary = [
             "PENDING: the destination chain has not yet reached the source block timestamp."
@@ -2375,19 +2553,38 @@ def build_audit_report(result: Dict[str, Any]) -> str:
         radar_summary = [
             "NOT RUN: the radar was not run because the source failed or block data is missing."
         ]
-    if isinstance(radar, dict) and radar.get("state") in {"candidates", "incomplete"}:
+    if isinstance(radar, dict) and radar.get("state") in {
+        "candidates",
+        "incomplete",
+        "no_match_global",
+        "fallback_incomplete",
+    }:
         for candidate in radar.get("candidates", [])[:5]:
             if not isinstance(candidate, dict):
                 continue
             candidate_hash = candidate.get("hash")
             candidate_url = build_transaction_explorer_url(
-                result.get("destination_chain"),
+                candidate.get("candidate_chain", result.get("destination_chain")),
                 candidate_hash,
             )
             if candidate_url and isinstance(candidate_hash, str):
                 radar_summary.append(
-                    f"Candidate destination hash: [{candidate_hash}]({candidate_url})"
+                    f"Candidate on {candidate.get('candidate_chain', result.get('destination_chain'))}: "
+                    f"[{candidate_hash}]({candidate_url})"
                 )
+    if isinstance(radar, dict) and radar.get("fallback_match"):
+        radar_summary.append(
+            "CROSS-NETWORK FALLBACK: no settlement was found on "
+            f"{radar.get('primary_chain')}; a matching transfer was detected on "
+            f"{radar.get('matched_chain')}."
+        )
+    if isinstance(radar, dict) and radar.get("fallback_searches"):
+        radar_summary.append("Network search coverage:")
+        radar_summary.extend(
+            f"{search.get('chain', 'Unknown network')}: {search.get('state')} "
+            f"({search.get('transfers_checked', 0)} transfers checked)"
+            for search in radar["fallback_searches"]
+        )
     if isinstance(radar, dict) and radar.get("swap_matching_enabled"):
         radar_summary.append("Different-token USD-value matching: enabled")
     if isinstance(radar, dict) and radar.get("swap_error"):
@@ -2475,6 +2672,11 @@ def build_audit_report(result: Dict[str, Any]) -> str:
         if isinstance(origin_timestamp, int)
         else "Unavailable"
     )
+    matched_network_display = (
+        transfer_chain
+        if isinstance(radar, dict) and radar.get("state") == "found"
+        else "Not confirmed"
+    )
 
     return "\n".join(
         [
@@ -2490,7 +2692,8 @@ def build_audit_report(result: Dict[str, Any]) -> str:
             "",
             "**Destination**",
             f"- Wallet: `{result.get('destination_wallet', 'N/A')}`",
-            f"- Network: {result.get('destination_chain', 'N/A')}",
+            f"- Selected network: {result.get('destination_chain', 'N/A')}",
+            f"- Matched network: {matched_network_display}",
             "",
             "**Operation Classification**",
             f"- Category: {classification['category']}",
@@ -2681,7 +2884,7 @@ def main() -> None:
     destination_chain = st.selectbox(
         "Destination Network",
         network_names,
-        index=network_names.index("Arbitrum"),
+        index=network_names.index("Optimism"),
         key="destination_network_selection",
     )
 
@@ -2750,23 +2953,24 @@ def main() -> None:
     else:
         try:
             with st.spinner(
-                f"Searching {destination_chain} incoming transfers across time windows..."
+                f"Searching {destination_chain} first, then other supported networks if needed..."
             ):
                 origin_timestamp = fetch_block_timestamp(
                     chain_name,
                     api_key,
                     receipt["blockNumber"],
                 )
-                radar_result = scan_destination_radar(
+                radar_result = scan_destination_radar_with_fallback(
                     api_key,
                     destination_chain,
+                    chain_name,
                     destination_wallet,
                     origin_timestamp,
                     result["origin_assets"],
-                    origin_chain=chain_name,
                 )
             result["origin_timestamp"] = origin_timestamp
             result["radar"] = radar_result
+            matched_chain = radar_result.get("matched_chain") or destination_chain
             transfer_for_inspection = (
                 radar_result.get("transfer")
                 if radar_result["state"] == "found"
@@ -2786,7 +2990,7 @@ def main() -> None:
                             origin_asset,
                             destination_asset,
                             chain_name,
-                            destination_chain,
+                            matched_chain,
                             origin_timestamp,
                             transfer["timestamp"],
                         )
@@ -2812,7 +3016,7 @@ def main() -> None:
                 with st.spinner("Inspecting destination transaction references..."):
                     reference_check = verify_destination_bridge_reference(
                         api_key,
-                        destination_chain,
+                        matched_chain,
                         transfer.get("hash"),
                         tx_hash,
                         transaction.get("from"),
@@ -2830,52 +3034,79 @@ def main() -> None:
                     "Historical USD comparison could not be completed. Existing "
                     f"same-token or swap matching is unchanged. {radar_result['price_error']}"
                 )
+            fallback_message = ""
             if radar_result["state"] == "found":
                 transfer = radar_result["transfer"]
                 classification = classify_operation(result)
                 result["operation_classification"] = classification
-                result["color"] = "green"
-                result["indicator"] = "🟢"
-                result["title"] = classification["verdict"]
-                if classification["category"] == "Same-Network Transfer":
-                    result["status_code"] = "SAME_NETWORK_TRANSFER_CONFIRMED"
-                elif classification["category"] == "Same-Network Swap":
-                    result["status_code"] = "SAME_NETWORK_SWAP_CONFIRMED"
-                elif classification["category"] == "Cross-Chain Bridge":
-                    result["status_code"] = "CROSS_CHAIN_BRIDGE_CONFIRMED"
+                if radar_result.get("fallback_match"):
+                    if radar_result.get("primary_state") == "error":
+                        fallback_message = (
+                            "⚠️ Cross-Network Fallback Match: The primary search on "
+                            f"{destination_chain} could not complete, but a matching "
+                            f"transfer to the destination wallet was detected on "
+                            f"{matched_chain}."
+                        )
+                    else:
+                        fallback_message = (
+                            "⚠️ Cross-Network Fallback Match: No settlement found on "
+                            f"{destination_chain}, but a matching transfer to the "
+                            f"destination wallet was detected on {matched_chain}."
+                        )
+                    result["color"] = "yellow"
+                    result["indicator"] = "🟡"
+                    result["title"] = "Cross-Network Fallback Match"
+                    result["status_code"] = "CROSS_NETWORK_FALLBACK_MATCH"
+                    result["notes"] = fallback_message
                 else:
-                    result["status_code"] = "CROSS_CHAIN_SWAP_CONFIRMED"
-                if radar_result.get("match_type") == "swap":
-                    result["notes"] = (
-                        f"Different-token transfer matched by historical USD value: "
-                        f"${transfer.get('destination_value_usd')} received vs "
-                        f"${transfer.get('origin_value_usd')} sent "
-                        f"({transfer.get('efficiency_percent')}% value efficiency)."
-                    )
-                else:
-                    formatted_fee = format_fee_percent(
-                        transfer.get("fee_percent")
-                    )
-                    result["notes"] = (
-                        f"The radar found a qualifying incoming transfer to the specified "
-                        f"wallet on {destination_chain}: received "
-                        f"{transfer.get('destination_amount')} "
-                        f"{transfer.get('matched_asset', transfer['asset'])}, from "
-                        f"{transfer.get('origin_amount')} "
-                        f"{transfer.get('matched_asset', transfer['asset'])} at source. "
-                        f"Estimated variation: {formatted_fee}%."
-                    )
+                    result["color"] = "green"
+                    result["indicator"] = "🟢"
+                    result["title"] = classification["verdict"]
+                    if classification["category"] == "Same-Network Transfer":
+                        result["status_code"] = "SAME_NETWORK_TRANSFER_CONFIRMED"
+                    elif classification["category"] == "Same-Network Swap":
+                        result["status_code"] = "SAME_NETWORK_SWAP_CONFIRMED"
+                    elif classification["category"] == "Cross-Chain Bridge":
+                        result["status_code"] = "CROSS_CHAIN_BRIDGE_CONFIRMED"
+                    else:
+                        result["status_code"] = "CROSS_CHAIN_SWAP_CONFIRMED"
+                    if radar_result.get("match_type") == "swap":
+                        result["notes"] = (
+                            f"Different-token transfer matched by historical USD value: "
+                            f"${transfer.get('destination_value_usd')} received vs "
+                            f"${transfer.get('origin_value_usd')} sent "
+                            f"({transfer.get('efficiency_percent')}% value efficiency)."
+                        )
+                    else:
+                        formatted_fee = format_fee_percent(
+                            transfer.get("fee_percent")
+                        )
+                        result["notes"] = (
+                            f"The radar found a qualifying incoming transfer to the specified "
+                            f"wallet on {matched_chain}: received "
+                            f"{transfer.get('destination_amount')} "
+                            f"{transfer.get('matched_asset', transfer['asset'])}, from "
+                            f"{transfer.get('origin_amount')} "
+                            f"{transfer.get('matched_asset', transfer['asset'])} at source. "
+                            f"Estimated variation: {formatted_fee}%."
+                        )
             if radar_result["state"] == "found":
                 transfer = radar_result["transfer"]
                 transfer_time = format_utc_timestamp(transfer["timestamp"])
                 classification = result["operation_classification"]
-                st.success(f"🟢 {classification['verdict']}:")
+                if radar_result.get("fallback_match"):
+                    st.warning(fallback_message)
+                else:
+                    st.success(f"🟢 {classification['verdict']}:")
                 st.markdown(
                     "**Destination hash:** "
                     + transaction_explorer_markdown(
-                        destination_chain,
+                        matched_chain,
                         transfer.get("hash"),
                     )
+                )
+                st.write(
+                    f"**Detected destination network:** {matched_chain}"
                 )
                 st.write(
                     f"**Destination block:** "
@@ -2965,6 +3196,52 @@ def main() -> None:
                         "The fee is an arithmetic estimate; temporal correlation alone does "
                         "not prove a cryptographic link between the hashes."
                     )
+            elif radar_result["state"] == "no_match_global":
+                no_match_message = (
+                    "❌ No Incoming Transfer Found: The destination wallet received no "
+                    "matching funds on the selected network nor across any other "
+                    "supported network within the inspected time window."
+                )
+                result["color"] = "red"
+                result["indicator"] = "🔴"
+                result["title"] = "No Match Global"
+                result["status_code"] = "NO_MATCH_GLOBAL"
+                result["notes"] = no_match_message
+                st.error(no_match_message)
+                st.caption(
+                    "Networks searched: "
+                    + ", ".join(radar_result.get("searched_networks", []))
+                    + (
+                        f". {len(radar_result.get('candidates', []))} incoming "
+                        "transfer(s) were observed but did not satisfy the matching rules."
+                        if radar_result.get("candidates")
+                        else "."
+                    )
+                )
+            elif radar_result["state"] == "fallback_incomplete":
+                result["color"] = "yellow"
+                result["indicator"] = "🟡"
+                result["title"] = "Global Search Incomplete"
+                result["status_code"] = "GLOBAL_SEARCH_INCOMPLETE"
+                result["notes"] = (
+                    "No destination match was confirmed, but the search could not "
+                    "complete on every supported destination network."
+                )
+                st.warning(result["notes"])
+                for search in radar_result.get("fallback_searches", []):
+                    if search.get("state") in {
+                        "error",
+                        "incomplete",
+                        "waiting_for_destination_chain",
+                    }:
+                        st.caption(
+                            f"{search.get('chain')}: {search.get('state')}"
+                            + (
+                                f" — {search['error']}"
+                                if search.get("error")
+                                else ""
+                            )
+                        )
             elif radar_result["state"] == "waiting_for_destination_chain":
                 st.info(
                     f"The latest {destination_chain} block header has a timestamp "
@@ -3010,9 +3287,10 @@ def main() -> None:
                         st.write(
                             f"- Hash: "
                             + transaction_explorer_markdown(
-                                destination_chain,
+                                candidate.get("candidate_chain", destination_chain),
                                 candidate.get("hash"),
                             )
+                            + f" | Network {candidate.get('candidate_chain', destination_chain)}"
                             + f" | Block {candidate.get('block_number_int') or 'N/A'} | "
                             f"{candidate.get('value', 'amount N/A')} "
                             f"{candidate.get('asset', 'asset N/A')} | {candidate_time}"
@@ -3032,7 +3310,7 @@ def main() -> None:
                             else "There were no incoming candidates in the queried windows."
                         )
                     )
-            else:
+            elif radar_result.get("state") == "not_found":
                 total_checked = sum(
                     window["transfers_checked"] for window in radar_result["windows"]
                 )

@@ -57,6 +57,14 @@ transaction.
 No match means no eligible inbound transfer was found in the searched windows,
 not proof that the bridge failed.
 
+The radar searches the operator-selected destination network first. If it finds
+no eligible match, it searches the other supported networks, excluding the
+source and already-queried destination networks. A match on an alternate network
+is reported as a yellow `Cross-Network Fallback Match`, not as settlement on the
+selected network. `No Match Global` is reported only when every required search
+completes without an eligible match; RPC failures, waiting chain heads, or
+truncated result pages are reported as an incomplete global search instead.
+
 Different-token swap matching runs automatically when no same-token match is
 found. It requests historical source and destination token prices from the
 public DefiLlama Coins API and accepts estimated USD value efficiency from 85%

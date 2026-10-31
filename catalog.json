@@ -1,0 +1,759 @@
+{
+  "schema_version": 1,
+  "catalog_name": "4kiscan verified EVM contract catalog",
+  "address_format": "lowercase 0x-prefixed EVM address",
+  "verification_policy": "Entries are included only when an official protocol or chain source publishes the chain/address association. Inclusion does not prove current liveness, code verification, or route availability. Missing entries are intentionally omitted rather than inferred.",
+  "chains": {
+    "Ethereum": {
+      "chain_id": 1,
+      "bridges": [
+        {
+          "name": "Across SpokePool",
+          "category": "bridges",
+          "protocol": "Across",
+          "role": "SpokePool",
+          "address": "0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5",
+          "source_url": "https://docs.across.to/chains-and-contracts"
+        },
+        {
+          "name": "Stargate V1 Router",
+          "category": "bridges",
+          "protocol": "Stargate",
+          "version": "V1",
+          "role": "Router",
+          "address": "0x8731d54e9d02c286767d56ac03e8037c07e01e98",
+          "source_url": "https://stargateprotocol.gitbook.io/stargate/developers/contract-addresses/mainnet.md"
+        },
+        {
+          "name": "Connext Amarok Core",
+          "category": "bridges",
+          "protocol": "Connext",
+          "role": "Core",
+          "address": "0x8898b472c54c31894e3b9bb83cea802a5d0e63c6",
+          "source_url": "https://docs.connext.network/resources/deployments.md"
+        },
+        {
+          "name": "Celer cBridge Pool Bridge",
+          "category": "bridges",
+          "protocol": "Celer cBridge",
+          "role": "Bridge",
+          "address": "0x5427fefa711eff984124bfbb1ab6fbf5e3da1820",
+          "source_url": "https://cbridge-docs.celer.network/reference/contract-addresses"
+        },
+        {
+          "name": "Socket Open Router",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Open Router",
+          "address": "0x50cfe7c1938db66a1a6d2e86d36f39fbef3d5c4a",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        },
+        {
+          "name": "Socket Allowance Holder",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Allowance Holder",
+          "address": "0x50c4e75a512f2a14a7b304787adf79c4531a5909",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        },
+        {
+          "name": "Arbitrum One L1 Bridge",
+          "category": "bridges",
+          "protocol": "Arbitrum Native Bridge",
+          "role": "L1 Bridge",
+          "address": "0x8315177ab297ba92a06054ce80a67ed4dbd7ed3a",
+          "network_context": "Arbitrum One",
+          "source_url": "https://docs.arbitrum.io/arbitrum-essentials/reference/contract-addresses"
+        },
+        {
+          "name": "Arbitrum One Delayed Inbox",
+          "category": "bridges",
+          "protocol": "Arbitrum Native Bridge",
+          "role": "Delayed Inbox",
+          "address": "0x4dbd4fc535ac27206064b68ffcf827b0a60bab3f",
+          "network_context": "Arbitrum One",
+          "source_url": "https://docs.arbitrum.io/arbitrum-essentials/reference/contract-addresses"
+        },
+        {
+          "name": "Polygon PoS Deposit Manager Proxy",
+          "category": "bridges",
+          "protocol": "Polygon PoS Native Bridge",
+          "role": "System contract; not a user-facing bridge entry point",
+          "address": "0x401f6c983ea34274ec46f84d70b31c151321188b",
+          "network_context": "Polygon PoS",
+          "source_url": "https://docs.polygon.technology/pos/reference/contracts/genesis-contracts.md",
+          "caveat": "The cited official genesis list establishes a system-contract deployment, not that this is the canonical user-facing bridge router."
+        }
+      ],
+      "dex": [
+        {
+          "name": "Uniswap V2 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Factory",
+          "address": "0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V2 Router02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Router",
+          "address": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V3 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "Factory",
+          "address": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-ethereum-deployments"
+        },
+        {
+          "name": "Uniswap V3 SwapRouter02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "SwapRouter02",
+          "address": "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-ethereum-deployments"
+        },
+        {
+          "name": "Curve Router V1",
+          "category": "dex",
+          "protocol": "Curve",
+          "version": "V1",
+          "role": "Router",
+          "address": "0x16c6521dff6bab339122a0fe25a9116693265353",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        },
+        {
+          "name": "Curve Router V2",
+          "category": "dex",
+          "protocol": "Curve",
+          "version": "V2",
+          "role": "Router",
+          "address": "0x45312ea0eff7e09c83cbe249fa1d7598c4c8cd4e",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        },
+        {
+          "name": "Curve Address Provider",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Address Provider",
+          "address": "0x5ffe7fb82894076ecb99a30d6a32e969e6e35e98",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        }
+      ],
+      "cex": [],
+      "omissions": [
+        "Stargate V2: no V2 address claim is derived from the cited V1 address list.",
+        "Hop, LI.FI, Rhino.fi, and SushiSwap: no address is included without an extracted official chain/address entry.",
+        "CEX wallets: user deposit addresses and exchange hot-wallet labels are not treated as canonical static contracts."
+      ]
+    },
+    "Polygon": {
+      "chain_id": 137,
+      "bridges": [
+        {
+          "name": "Across SpokePool",
+          "category": "bridges",
+          "protocol": "Across",
+          "role": "SpokePool",
+          "address": "0x9295ee1d8c5b022be115a2ad3c30c72e34e7f096",
+          "source_url": "https://docs.across.to/chains-and-contracts"
+        },
+        {
+          "name": "Stargate V1 Router",
+          "category": "bridges",
+          "protocol": "Stargate",
+          "version": "V1",
+          "role": "Router",
+          "address": "0x45a01e4e04f14f7a4a6702c74187c5f6222033cd",
+          "source_url": "https://stargateprotocol.gitbook.io/stargate/developers/contract-addresses/mainnet.md"
+        },
+        {
+          "name": "Connext Amarok Core",
+          "category": "bridges",
+          "protocol": "Connext",
+          "role": "Core",
+          "address": "0x11984dc4465481512eb5b777e44061c158cf2259",
+          "source_url": "https://docs.connext.network/resources/deployments.md"
+        },
+        {
+          "name": "Celer cBridge Pool Bridge",
+          "category": "bridges",
+          "protocol": "Celer cBridge",
+          "role": "Bridge",
+          "address": "0x88dcdc47d2f83a99cf0000fdf667a468bb958a78",
+          "source_url": "https://cbridge-docs.celer.network/reference/contract-addresses"
+        },
+        {
+          "name": "Socket Open Router",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Open Router",
+          "address": "0x50cfe7c1938db66a1a6d2e86d36f39fbef3d5c4a",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        },
+        {
+          "name": "Socket Allowance Holder",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Allowance Holder",
+          "address": "0x50c4e75a512f2a14a7b304787adf79c4531a5909",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        },
+        {
+          "name": "Polygon PoS Child Chain",
+          "category": "bridges",
+          "protocol": "Polygon PoS Native Bridge",
+          "role": "System contract; not a user-facing bridge entry point",
+          "address": "0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861",
+          "source_url": "https://docs.polygon.technology/pos/reference/contracts/genesis-contracts.md",
+          "caveat": "The cited official genesis list establishes a system-contract deployment, not that this is the canonical user-facing bridge router."
+        }
+      ],
+      "dex": [
+        {
+          "name": "Uniswap V2 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Factory",
+          "address": "0x9e5a52f57b3038f1b8eee45f28b3c1967e22799c",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V2 Router02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Router",
+          "address": "0xedf6066a2b290c185783862c7f4776a2c8077ad1",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V3 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "Factory",
+          "address": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-polygon-deployments"
+        },
+        {
+          "name": "Uniswap V3 SwapRouter02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "SwapRouter02",
+          "address": "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-polygon-deployments"
+        },
+        {
+          "name": "QuickSwap V2 Router",
+          "category": "dex",
+          "protocol": "QuickSwap",
+          "version": "V2",
+          "role": "Router",
+          "address": "0xa5e0829caced8ffdd4de3c43696c57f7d7a678ff",
+          "source_url": "https://docs.quickswap.exchange/overview/contracts-and-addresses.md"
+        },
+        {
+          "name": "QuickSwap V2 Factory",
+          "category": "dex",
+          "protocol": "QuickSwap",
+          "version": "V2",
+          "role": "Factory",
+          "address": "0x5757371414417b8c6caad45baef941abc7d3ab32",
+          "source_url": "https://docs.quickswap.exchange/overview/contracts-and-addresses.md"
+        },
+        {
+          "name": "QuickSwap V3 Algebra Factory",
+          "category": "dex",
+          "protocol": "QuickSwap",
+          "version": "V3 Algebra",
+          "role": "Factory",
+          "address": "0x411b0facc3489691f28ad58c47006af5e3ab3a28",
+          "source_url": "https://docs.quickswap.exchange/overview/contracts-and-addresses.md"
+        },
+        {
+          "name": "QuickSwap V3 Algebra Swap Router",
+          "category": "dex",
+          "protocol": "QuickSwap",
+          "version": "V3 Algebra",
+          "role": "Router",
+          "address": "0xf5b509bb0909a69b1c207e495f687a596c168e12",
+          "source_url": "https://docs.quickswap.exchange/overview/contracts-and-addresses.md"
+        },
+        {
+          "name": "Curve Router",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Router",
+          "address": "0x0dcded3545d565ba3b19e683431381007245d983",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        },
+        {
+          "name": "Curve Address Provider",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Address Provider",
+          "address": "0x5ffe7fb82894076ecb99a30d6a32e969e6e35e98",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        }
+      ],
+      "cex": [],
+      "omissions": [
+        "Hop, LI.FI, Rhino.fi, and SushiSwap: no address is included without an extracted official chain/address entry.",
+        "CEX wallets: user deposit addresses and exchange hot-wallet labels are not treated as canonical static contracts."
+      ]
+    },
+    "Arbitrum": {
+      "chain_id": 42161,
+      "bridges": [
+        {
+          "name": "Across SpokePool",
+          "category": "bridges",
+          "protocol": "Across",
+          "role": "SpokePool",
+          "address": "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
+          "source_url": "https://docs.across.to/chains-and-contracts"
+        },
+        {
+          "name": "Stargate V1 Router",
+          "category": "bridges",
+          "protocol": "Stargate",
+          "version": "V1",
+          "role": "Router",
+          "address": "0x53bf833a5d6c4dda888f69c22c88c9f356a41614",
+          "source_url": "https://stargateprotocol.gitbook.io/stargate/developers/contract-addresses/mainnet.md"
+        },
+        {
+          "name": "Connext Amarok Core",
+          "category": "bridges",
+          "protocol": "Connext",
+          "role": "Core",
+          "address": "0xee9dec2712cce65174b561151701bf54b99c24c8",
+          "source_url": "https://docs.connext.network/resources/deployments.md"
+        },
+        {
+          "name": "Celer cBridge Pool Bridge",
+          "category": "bridges",
+          "protocol": "Celer cBridge",
+          "role": "Bridge",
+          "address": "0x1619de6b6b20ed217a58d00f37b9d47c7663feca",
+          "source_url": "https://cbridge-docs.celer.network/reference/contract-addresses"
+        },
+        {
+          "name": "Socket Open Router",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Open Router",
+          "address": "0x50cfe7c1938db66a1a6d2e86d36f39fbef3d5c4a",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        },
+        {
+          "name": "Socket Allowance Holder",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Allowance Holder",
+          "address": "0x50c4e75a512f2a14a7b304787adf79c4531a5909",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        }
+      ],
+      "dex": [
+        {
+          "name": "Uniswap V2 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Factory",
+          "address": "0xf1d7cc64fb4452f05c498126312ebe29f30fbcf9",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V2 Router02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Router",
+          "address": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V3 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "Factory",
+          "address": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-arbitrum-deployments"
+        },
+        {
+          "name": "Uniswap V3 SwapRouter02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "SwapRouter02",
+          "address": "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-arbitrum-deployments"
+        },
+        {
+          "name": "Curve Router",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Router",
+          "address": "0x2191718cd32d02b8e60badffea33e4b5dd9a0a0d",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        },
+        {
+          "name": "Curve Address Provider",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Address Provider",
+          "address": "0x5ffe7fb82894076ecb99a30d6a32e969e6e35e98",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        }
+      ],
+      "cex": [],
+      "omissions": [
+        "Hop, LI.FI, Rhino.fi, and SushiSwap: no address is included without an extracted official chain/address entry.",
+        "CEX wallets: user deposit addresses and exchange hot-wallet labels are not treated as canonical static contracts."
+      ]
+    },
+    "Optimism": {
+      "chain_id": 10,
+      "bridges": [
+        {
+          "name": "Across SpokePool",
+          "category": "bridges",
+          "protocol": "Across",
+          "role": "SpokePool",
+          "address": "0x6f26bf09b1c792e3228e5467807a900a503c0281",
+          "source_url": "https://docs.across.to/chains-and-contracts"
+        },
+        {
+          "name": "Stargate V1 Router",
+          "category": "bridges",
+          "protocol": "Stargate",
+          "version": "V1",
+          "role": "Router",
+          "address": "0xb0d502e938ed5f4df2e681fe6e419ff29631d62b",
+          "source_url": "https://stargateprotocol.gitbook.io/stargate/developers/contract-addresses/mainnet.md"
+        },
+        {
+          "name": "Connext Amarok Core",
+          "category": "bridges",
+          "protocol": "Connext",
+          "role": "Core",
+          "address": "0x8f7492de823025b4cfaab1d34c58963f2af5deda",
+          "source_url": "https://docs.connext.network/resources/deployments.md"
+        },
+        {
+          "name": "Celer cBridge Pool Bridge",
+          "category": "bridges",
+          "protocol": "Celer cBridge",
+          "role": "Bridge",
+          "address": "0x9d39fc627a6d9d9f8c831c16995b209548cc3401",
+          "source_url": "https://cbridge-docs.celer.network/reference/contract-addresses"
+        },
+        {
+          "name": "Socket Open Router",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Open Router",
+          "address": "0x50cfe7c1938db66a1a6d2e86d36f39fbef3d5c4a",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        },
+        {
+          "name": "Socket Allowance Holder",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Allowance Holder",
+          "address": "0x50c4e75a512f2a14a7b304787adf79c4531a5909",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        }
+      ],
+      "dex": [
+        {
+          "name": "Uniswap V2 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Factory",
+          "address": "0x0c3c1c532f1e39edf36be9fe0be1410313e074bf",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V2 Router02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Router",
+          "address": "0x4a7b5da61326a6379179b40d00f57e5bbdc962c2",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V3 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "Factory",
+          "address": "0x1f98431c8ad98523631ae4a59f267346ea31f984",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-optimism-deployments"
+        },
+        {
+          "name": "Uniswap V3 SwapRouter02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "SwapRouter02",
+          "address": "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-optimism-deployments"
+        },
+        {
+          "name": "Velodrome Router",
+          "category": "dex",
+          "protocol": "Velodrome",
+          "role": "Router",
+          "address": "0xa062ae8a9c5e11aaa026fc2670b0d65ccc8b2858",
+          "source_url": "https://github.com/velodrome-finance/contracts/blob/b3065d8b6702b14b094f9f6046b752cc9f78c43b/deployment-addresses/optimism.json"
+        },
+        {
+          "name": "Velodrome PoolFactory",
+          "category": "dex",
+          "protocol": "Velodrome",
+          "role": "PoolFactory",
+          "address": "0xf1046053aa5682b4f9a81b5481394da16be5ff5a",
+          "source_url": "https://github.com/velodrome-finance/contracts/blob/b3065d8b6702b14b094f9f6046b752cc9f78c43b/deployment-addresses/optimism.json"
+        },
+        {
+          "name": "Velodrome FactoryRegistry",
+          "category": "dex",
+          "protocol": "Velodrome",
+          "role": "FactoryRegistry",
+          "address": "0xf4c67cdeaab8360370f41514d06e32ccd8aa1d7b",
+          "source_url": "https://github.com/velodrome-finance/contracts/blob/b3065d8b6702b14b094f9f6046b752cc9f78c43b/deployment-addresses/optimism.json"
+        },
+        {
+          "name": "Curve Router",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Router",
+          "address": "0x0dcded3545d565ba3b19e683431381007245d983",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        },
+        {
+          "name": "Curve Address Provider",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Address Provider",
+          "address": "0x5ffe7fb82894076ecb99a30d6a32e969e6e35e98",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        }
+      ],
+      "cex": [],
+      "omissions": [
+        "Native Optimism bridge contracts are not included because the reviewed official sources did not expose a chain/address deployment row for the relevant entry points.",
+        "Hop, LI.FI, Rhino.fi, and SushiSwap: no address is included without an extracted official chain/address entry.",
+        "CEX wallets: user deposit addresses and exchange hot-wallet labels are not treated as canonical static contracts."
+      ]
+    },
+    "Base": {
+      "chain_id": 8453,
+      "bridges": [
+        {
+          "name": "Across SpokePool",
+          "category": "bridges",
+          "protocol": "Across",
+          "role": "SpokePool",
+          "address": "0x09aea4b2242abc8bb4bb78d537a67a245a7bec64",
+          "source_url": "https://docs.across.to/chains-and-contracts"
+        },
+        {
+          "name": "Stargate V1 Router",
+          "category": "bridges",
+          "protocol": "Stargate",
+          "version": "V1",
+          "role": "Router",
+          "address": "0x45f1a95a4d3f3836523f5c83673c797f4d4d263b",
+          "source_url": "https://stargateprotocol.gitbook.io/stargate/developers/contract-addresses/mainnet.md"
+        },
+        {
+          "name": "Connext Amarok Core",
+          "category": "bridges",
+          "protocol": "Connext",
+          "role": "Core",
+          "address": "0xb8448c6f7f7887d36dca487370778e419e9ebe3f",
+          "source_url": "https://docs.connext.network/resources/deployments.md"
+        },
+        {
+          "name": "Celer cBridge Pool Bridge",
+          "category": "bridges",
+          "protocol": "Celer cBridge",
+          "role": "Bridge",
+          "address": "0x7d43aabc515c356145049227cee54b608342c0ad",
+          "source_url": "https://cbridge-docs.celer.network/reference/contract-addresses"
+        },
+        {
+          "name": "Socket Open Router",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Open Router",
+          "address": "0x50cfe7c1938db66a1a6d2e86d36f39fbef3d5c4a",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        },
+        {
+          "name": "Socket Allowance Holder",
+          "category": "bridges",
+          "protocol": "Socket",
+          "role": "Allowance Holder",
+          "address": "0x50c4e75a512f2a14a7b304787adf79c4531a5909",
+          "source_url": "https://docs.socket.tech/integrate/contract-addresses.md"
+        }
+      ],
+      "dex": [
+        {
+          "name": "Uniswap V2 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Factory",
+          "address": "0x8909dc15e40173ff4699343b6eb8132c65e18ec6",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V2 Router02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V2",
+          "role": "Router",
+          "address": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v2/deployments"
+        },
+        {
+          "name": "Uniswap V3 Factory",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "Factory",
+          "address": "0x33128a8fc17869897dce68ed026d694621f6fdfd",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-base-deployments"
+        },
+        {
+          "name": "Uniswap V3 SwapRouter02",
+          "category": "dex",
+          "protocol": "Uniswap",
+          "version": "V3",
+          "role": "SwapRouter02",
+          "address": "0x2626664c2603336e57b271c5c0b26f421741e481",
+          "source_url": "https://developers.uniswap.org/docs/protocols/v3/deployments/v3-base-deployments"
+        },
+        {
+          "name": "QuickSwap V2 Router",
+          "category": "dex",
+          "protocol": "QuickSwap",
+          "version": "V2",
+          "role": "Router",
+          "address": "0x4a012af2b05616fb390ed32452641c3f04633bb5",
+          "source_url": "https://docs.quickswap.exchange/overview/contracts-and-addresses.md"
+        },
+        {
+          "name": "QuickSwap V2 Factory",
+          "category": "dex",
+          "protocol": "QuickSwap",
+          "version": "V2",
+          "role": "Factory",
+          "address": "0xec6540261aaae13f236a032d454dc9287e52e56a",
+          "source_url": "https://docs.quickswap.exchange/overview/contracts-and-addresses.md"
+        },
+        {
+          "name": "Aerodrome Router",
+          "category": "dex",
+          "protocol": "Aerodrome",
+          "role": "Router",
+          "address": "0xcf77a3ba9a5ca399b7c97c74d54e5b1beb874e43",
+          "source_url": "https://github.com/aerodrome-finance/contracts/blob/1ba30815bba620f7e9faa34769ffd00c214c9b82/script/constants/output/DeployCore-Base.json"
+        },
+        {
+          "name": "Aerodrome PoolFactory",
+          "category": "dex",
+          "protocol": "Aerodrome",
+          "role": "PoolFactory",
+          "address": "0x420dd381b31aef6683db6b902084cb0ffece40da",
+          "source_url": "https://github.com/aerodrome-finance/contracts/blob/1ba30815bba620f7e9faa34769ffd00c214c9b82/script/constants/output/DeployCore-Base.json"
+        },
+        {
+          "name": "Aerodrome FactoryRegistry",
+          "category": "dex",
+          "protocol": "Aerodrome",
+          "role": "FactoryRegistry",
+          "address": "0x5c3f18f06cc09ca1910767a34a20f771039e37c0",
+          "source_url": "https://github.com/aerodrome-finance/contracts/blob/1ba30815bba620f7e9faa34769ffd00c214c9b82/script/constants/output/DeployCore-Base.json"
+        },
+        {
+          "name": "Curve Router",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Router",
+          "address": "0x4f37a9d177470499a2dd084621020b023fcffc1f",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        },
+        {
+          "name": "Curve Address Provider",
+          "category": "dex",
+          "protocol": "Curve",
+          "role": "Address Provider",
+          "address": "0x5ffe7fb82894076ecb99a30d6a32e969e6e35e98",
+          "source_url": "https://docs.curve.finance/deployments.json",
+          "caveat": "Curve's deployment directory warns that raw deployment data may contain outdated or incorrect entries."
+        }
+      ],
+      "cex": [],
+      "omissions": [
+        "Native Base bridge contracts are not included because the reviewed official sources did not expose a chain/address deployment row for the relevant entry points.",
+        "Hop, LI.FI, Rhino.fi, and SushiSwap: no address is included without an extracted official chain/address entry.",
+        "CEX wallets: user deposit addresses and exchange hot-wallet labels are not treated as canonical static contracts."
+      ]
+    }
+  },
+  "excluded_protocols": {
+    "Stargate V2": "The reviewed source is explicitly the V1 mainnet address list; V2 addresses require a separate official deployment source.",
+    "Hop Protocol": "The official repository publishes a mainnet address map, but no chain-specific address was extracted and validated for this catalog generation.",
+    "LI.FI": "Transaction targets can be route-specific; no single static router address is asserted here without an official fixed deployment map.",
+    "Rhino.fi": "No official chain-specific EVM contract address table was confirmed in the reviewed sources.",
+    "SushiSwap": "The official docs located did not expose a usable chain/address row in the reviewed deployment data.",
+    "Binance, Coinbase/Coinbase Prime, OKX, Bybit": "No static address is listed. Customer deposit addresses may be assigned dynamically, while hot-wallet labels can rotate and third-party labels are not an authoritative exchange address registry."
+  },
+  "sources": [
+    "https://docs.across.to/chains-and-contracts",
+    "https://stargateprotocol.gitbook.io/stargate/developers/contract-addresses/mainnet.md",
+    "https://docs.connext.network/resources/deployments.md",
+    "https://cbridge-docs.celer.network/reference/contract-addresses",
+    "https://docs.socket.tech/integrate/contract-addresses.md",
+    "https://docs.arbitrum.io/arbitrum-essentials/reference/contract-addresses",
+    "https://docs.polygon.technology/pos/reference/contracts/genesis-contracts.md",
+    "https://developers.uniswap.org/docs/protocols/v2/deployments",
+    "https://developers.uniswap.org/docs/protocols/v3/deployments",
+    "https://docs.quickswap.exchange/overview/contracts-and-addresses.md",
+    "https://github.com/velodrome-finance/contracts/blob/b3065d8b6702b14b094f9f6046b752cc9f78c43b/deployment-addresses/optimism.json",
+    "https://github.com/aerodrome-finance/contracts/blob/1ba30815bba620f7e9faa34769ffd00c214c9b82/script/constants/output/DeployCore-Base.json",
+    "https://docs.curve.finance/deployments.json"
+  ]
+}
