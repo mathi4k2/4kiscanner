@@ -21,12 +21,14 @@ The EVM transaction checker in `app.py` runs separately from the Vite interface:
 
 1. Install Python dependencies: `pip install -r requirements.txt`
 2. Start Streamlit: `streamlit run app.py`
-3. Select the origin and destination chains, enter the origin transaction hash
-   and expected destination wallet. Configure `ALCHEMY_API_KEY` in Streamlit
-   Community Cloud's app secrets (or in a local `.streamlit/secrets.toml` file);
-   the key is not entered or displayed in the app. The app reads the origin
-   transaction and receipt using Alchemy JSON-RPC, then reads the origin block
-   timestamp.
+3. Enter the transaction hash first. The app queries all supported Alchemy
+   networks concurrently and selects the source network when exactly one match
+   is found; ambiguous or unavailable detection leaves the network selector
+   available for manual selection. Then enter the destination wallet and select
+   the destination network. Configure `ALCHEMY_API_KEY` in Streamlit Community
+   Cloud's app secrets (or in a local `.streamlit/secrets.toml` file); the key
+   is not entered or displayed in the app. The app reads the transaction and
+   receipt using Alchemy JSON-RPC, then reads the source block timestamp.
 4. The destination radar extracts native value and relevant ERC-20 `Transfer`
    amounts from the source transaction, then estimates destination block ranges
    from the latest observed block interval and searches inbound asset transfers
@@ -55,12 +57,35 @@ transaction.
 No match means no eligible inbound transfer was found in the searched windows,
 not proof that the bridge failed.
 
+Different-token swap matching runs automatically when no same-token match is
+found. It requests historical source and destination token prices from the
+public DefiLlama Coins API and accepts estimated USD value efficiency from 85%
+through 98%. Price responses are cached for one hour. Prices and value matches
+are estimates, not execution quotes or cryptographic proof.
+
+For a confirmed transfer or the top-ranked possible destination candidate, the
+app also reads its transaction and receipt and searches the destination input
+and event logs for the source hash or sender address. It reports
+`Verified Bridge Reference` only when the source
+hash or sender is referenced in calldata to a catalogued bridge/router or in a
+log emitted by one. This reference status is reported separately from the
+wallet/asset/amount match.
+
 After the traffic-light verdict, the Streamlit app displays a concise internal
 audit/triage report with source and destination transaction details, detected
 bridge/router, extracted source assets, and the destination radar outcome.
 The source and detected destination hashes link to their network-specific block
 explorers. The copy button copies this report verbatim, including Markdown links;
 it is not a customer-facing reply.
+
+Confirmed operations are categorized by network route and asset match:
+same-network equivalent-asset matches are `Same-Network Transfer`, same-network
+different-asset matches are `Same-Network Swap`, cross-network
+equivalent-asset matches are `Cross-Chain Bridge`, and cross-network
+different-asset matches are `Cross-Chain Swap`. Unmatched or incomplete radar
+results remain unconfirmed. The internal report records the operation type,
+network route, asset flow, and verification method; an asset/time correlation
+alone is not treated as a verified bridge reference.
 
 The expanded local per-network catalog covers Across SpokePools, Stargate V1/V2
 routers, bridges and pools, Hop bridges and AMM contracts, Celer cBridge,

@@ -5,8 +5,9 @@ import json
 import os
 import re
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import quote
 
@@ -79,11 +80,11 @@ BLOCK_EXPLORER_BASE_URLS: Dict[str, str] = {
 }
 
 RADAR_WINDOWS_SECONDS = (
-    ("1 minuto", 60),
-    ("5 minutos", 5 * 60),
-    ("30 minutos", 30 * 60),
-    ("4 horas", 4 * 60 * 60),
-    ("48 horas", 48 * 60 * 60),
+    ("1 minute", 60),
+    ("5 minutes", 5 * 60),
+    ("30 minutes", 30 * 60),
+    ("4 hours", 4 * 60 * 60),
+    ("48 hours", 48 * 60 * 60),
 )
 RADAR_MAX_PAGES_PER_WINDOW = 5
 RADAR_MIN_RECEIVED_PERCENT = 97
@@ -782,6 +783,44 @@ def fetch_transaction_and_receipt(
     return transaction, receipt
 
 
+def detect_transaction_network(tx_hash: str, api_key: str) -> Dict[str, Any]:
+    """Query every configured Alchemy network concurrently for a transaction hash."""
+    matches: List[str] = []
+    errors: List[str] = []
+    with ThreadPoolExecutor(max_workers=len(CHAINS)) as executor:
+        futures = {
+            executor.submit(
+                alchemy_rpc,
+                chain_name,
+                api_key,
+                "eth_getTransactionByHash",
+                [tx_hash],
+            ): chain_name
+            for chain_name in CHAINS
+        }
+        for future in as_completed(futures):
+            chain_name = futures[future]
+            try:
+                transaction = future.result()
+            except RpcError as error:
+                if "Transaction not found on " not in str(error):
+                    errors.append(f"{chain_name}: {error}")
+                continue
+            if (
+                isinstance(transaction, dict)
+                and str(transaction.get("hash", "")).lower() == tx_hash.lower()
+            ):
+                matches.append(chain_name)
+
+    if len(matches) == 1:
+        return {"state": "detected", "networks": matches, "errors": errors}
+    if matches:
+        return {"state": "ambiguous", "networks": matches, "errors": errors}
+    if errors:
+        return {"state": "incomplete", "networks": [], "errors": errors}
+    return {"state": "not_found", "networks": [], "errors": []}
+
+
 def parse_block_number(value: Any, field_name: str = "blockNumber") -> int:
     if not isinstance(value, str) or not value.startswith("0x"):
         raise RpcError(f"Field {field_name} has an invalid block-number format.")
@@ -820,6 +859,12 @@ def parse_transfer_timestamp(transfer: Dict[str, Any]) -> Optional[int]:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return int(parsed.timestamp())
+
+
+def format_utc_timestamp(timestamp: int) -> str:
+    return datetime.fromtimestamp(timestamp, timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S UTC"
+    )
 
 
 def estimate_average_block_time(
@@ -869,8 +914,7 @@ def scan_destination_radar(
     destination_wallet: str,
     origin_timestamp: int,
     origin_assets: Optional[List[Dict[str, Any]]] = None,
-    enable_swap_matching: bool = False,
-    origin_chain: Optional[str] = None,
+    origin_chain: str = "",
 ) -> Dict[str, Any]:
     """Find exact wallet, asset, and amount matches in widening time windows."""
     origin_assets = origin_assets or []
@@ -909,7 +953,7 @@ def scan_destination_radar(
         "average_block_time": average_block_time,
         "estimate_source": estimate_source,
         "partial": False,
-        "swap_matching_enabled": enable_swap_matching,
+        "swap_matching_enabled": True,
     }
     if latest_timestamp < origin_timestamp:
         result["state"] = "waiting_for_destination_chain"
@@ -1110,12 +1154,12 @@ def scan_destination_radar(
         if page_key is not None and pages_read >= RADAR_MAX_PAGES_PER_WINDOW:
             result["partial"] = True
 
-    if enable_swap_matching and result["candidates"]:
+    if result["candidates"]:
         try:
             swap_match = find_usd_swap_match(
                 origin_assets,
                 result["candidates"],
-                origin_chain or "",
+                origin_chain,
                 destination_chain,
                 origin_timestamp,
             )
@@ -1485,6 +1529,16 @@ def normalize_asset_label(value: Any) -> Optional[str]:
     return normalized or None
 
 
+def format_fee_percent(value: Any) -> str:
+    try:
+        fee_percent = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return "N/A"
+    if not fee_percent.is_finite():
+        return "N/A"
+    return f"{fee_percent:.6f}".rstrip("0").rstrip(".") or "0"
+
+
 def asset_labels(asset: Dict[str, Any]) -> Set[str]:
     labels: Set[str] = set()
     token_address = asset.get("token_address")
@@ -1546,7 +1600,7 @@ def find_fee_tolerant_asset_match(
             Decimal(origin_scaled - destination_scaled)
             * Decimal(100)
             / Decimal(origin_scaled)
-        ).quantize(Decimal("0.0001"))
+        ).quantize(Decimal("0.000001"))
         return {
             "origin_asset": origin_asset,
             "origin_amount": origin_amount,
@@ -1589,6 +1643,49 @@ def asset_amount_decimal(asset: Dict[str, Any]) -> Optional[Decimal]:
     return Decimal(raw_amount) / (Decimal(10) ** decimals)
 
 
+def compare_historical_usd_values(
+    origin_asset: Dict[str, Any],
+    destination_asset: Dict[str, Any],
+    origin_chain: str,
+    destination_chain: str,
+    origin_timestamp: int,
+    destination_timestamp: int,
+) -> Optional[Dict[str, Decimal]]:
+    origin_amount = asset_amount_decimal(origin_asset)
+    destination_amount = asset_amount_decimal(destination_asset)
+    origin_coin_id = defillama_coin_id(origin_chain, origin_asset)
+    destination_coin_id = defillama_coin_id(destination_chain, destination_asset)
+    if (
+        origin_amount is None
+        or destination_amount is None
+        or origin_coin_id is None
+        or destination_coin_id is None
+    ):
+        return None
+
+    origin_price = fetch_defillama_historical_price(
+        origin_timestamp,
+        origin_coin_id,
+    )
+    destination_price = fetch_defillama_historical_price(
+        destination_timestamp,
+        destination_coin_id,
+    )
+    if origin_price is None or destination_price is None:
+        return None
+
+    origin_usd = origin_amount * Decimal(str(origin_price))
+    destination_usd = destination_amount * Decimal(str(destination_price))
+    if origin_usd <= 0 or destination_usd <= 0:
+        return None
+    efficiency = destination_usd * Decimal(100) / origin_usd
+    return {
+        "origin_usd": origin_usd,
+        "destination_usd": destination_usd,
+        "efficiency_percent": efficiency,
+    }
+
+
 def find_usd_swap_match(
     origin_assets: List[Dict[str, Any]],
     candidates: List[Dict[str, Any]],
@@ -1597,6 +1694,7 @@ def find_usd_swap_match(
     origin_timestamp: int,
 ) -> Optional[Dict[str, Any]]:
     """Match different assets when historical USD value is within the swap range."""
+    price_unavailable = False
     for candidate in candidates:
         destination_asset = candidate.get("destination_asset")
         destination_timestamp = candidate.get("timestamp")
@@ -1620,31 +1718,27 @@ def find_usd_swap_match(
                 continue
             if asset_labels(origin_asset) & asset_labels(destination_asset):
                 continue
-
             origin_amount = asset_amount_decimal(origin_asset)
-            origin_coin_id = defillama_coin_id(
-                origin_chain,
+            if (
+                origin_amount is None
+                or defillama_coin_id(origin_chain, origin_asset) is None
+            ):
+                continue
+
+            comparison = compare_historical_usd_values(
                 origin_asset,
-            )
-            if origin_amount is None or origin_coin_id is None:
-                continue
-
-            origin_price = fetch_defillama_historical_price(
+                destination_asset,
+                origin_chain,
+                destination_chain,
                 origin_timestamp,
-                origin_coin_id,
-            )
-            destination_price = fetch_defillama_historical_price(
                 destination_timestamp,
-                destination_coin_id,
             )
-            if origin_price is None or destination_price is None:
+            if comparison is None:
+                price_unavailable = True
                 continue
-
-            origin_usd = origin_amount * Decimal(str(origin_price))
-            destination_usd = destination_amount * Decimal(str(destination_price))
-            if origin_usd <= 0:
-                continue
-            efficiency = destination_usd * Decimal(100) / origin_usd
+            origin_usd = comparison["origin_usd"]
+            destination_usd = comparison["destination_usd"]
+            efficiency = comparison["efficiency_percent"]
             if not SWAP_MIN_VALUE_PERCENT <= efficiency <= SWAP_MAX_VALUE_PERCENT:
                 continue
 
@@ -1673,6 +1767,10 @@ def find_usd_swap_match(
                 }
             )
             return match
+    if price_unavailable:
+        raise DefiLlamaError(
+            "DefiLlama did not return a historical USD price for one or more candidate assets."
+        )
     return None
 
 
@@ -1750,6 +1848,155 @@ def identify_bridges(
         }
         for address in evidence_by_address
     ]
+
+
+def payload_contains_hash(payload: Any, tx_hash: str) -> bool:
+    if not isinstance(payload, str):
+        return False
+    normalized_payload = payload.lower().removeprefix("0x")
+    normalized_hash = tx_hash.lower().removeprefix("0x")
+    return bool(normalized_hash) and normalized_hash in normalized_payload
+
+
+def verify_destination_bridge_reference(
+    api_key: str,
+    destination_chain: str,
+    destination_tx_hash: Any,
+    origin_tx_hash: str,
+    origin_sender: Any,
+) -> Dict[str, Any]:
+    """Inspect a destination transaction for explicit references to its source."""
+    if not isinstance(destination_tx_hash, str) or not TX_HASH_PATTERN.fullmatch(
+        destination_tx_hash
+    ):
+        return {
+            "status": "Not checked",
+            "detail": "The destination transfer did not include a valid transaction hash.",
+        }
+
+    try:
+        transaction, receipt = fetch_transaction_and_receipt(
+            destination_chain,
+            api_key,
+            destination_tx_hash,
+        )
+    except RpcError as error:
+        return {"status": "Lookup failed", "detail": str(error)}
+    if receipt is None:
+        return {
+            "status": "Receipt unavailable",
+            "detail": "The destination transaction has no receipt yet.",
+        }
+
+    raw_logs = receipt.get("logs", [])
+    logs = (
+        [log for log in raw_logs if isinstance(log, dict)]
+        if isinstance(raw_logs, list)
+        else []
+    )
+    transaction_input = transaction.get("input", "")
+    source_sender = (
+        origin_sender.lower()
+        if isinstance(origin_sender, str)
+        and ADDRESS_PATTERN.fullmatch(origin_sender)
+        else None
+    )
+
+    hash_in_input = payload_contains_hash(transaction_input, origin_tx_hash)
+    hash_in_logs = False
+    sender_in_input = False
+    sender_in_logs = False
+    bridge_hash_log_match = False
+    bridge_sender_log_match = False
+    catalog = BRIDGE_CATALOG.get(destination_chain, {})
+    transaction_to = str(transaction.get("to") or "").lower()
+    bridge_transaction_target = transaction_to in catalog
+
+    if source_sender:
+        sender_in_input = source_sender in addresses_in_hex_payload(transaction_input)
+
+    for log in logs:
+        topics = log.get("topics", [])
+        topics = topics if isinstance(topics, list) else []
+        payloads = [value for value in topics if isinstance(value, str)]
+        log_data = log.get("data")
+        if isinstance(log_data, str):
+            payloads.append(log_data)
+
+        log_hash_match = any(
+            payload_contains_hash(payload, origin_tx_hash)
+            for payload in payloads
+        )
+        hash_in_logs = hash_in_logs or log_hash_match
+
+        log_sender_match = source_sender is not None and any(
+            source_sender in addresses_in_hex_payload(payload)
+            for payload in payloads
+        )
+        if log_sender_match:
+            sender_in_logs = True
+
+        emitter = str(log.get("address") or "").lower()
+        if emitter in catalog and log_hash_match:
+            bridge_hash_log_match = True
+        if emitter in catalog and log_sender_match:
+            bridge_sender_log_match = True
+
+    verified = (
+        (hash_in_input and bridge_transaction_target)
+        or bridge_hash_log_match
+        or (sender_in_input and bridge_transaction_target)
+        or bridge_sender_log_match
+    )
+    bridge_matches = identify_bridges(
+        destination_chain,
+        transaction_to,
+        logs,
+        transaction_input,
+    )
+    bridge_names = list(
+        dict.fromkeys(
+            str(match.get("name", match.get("protocol", "Bridge")))
+            for match in bridge_matches
+            if "tx.to" in match.get("evidence", [])
+            or "log.address" in match.get("evidence", [])
+        )
+    )
+    if verified:
+        status = "Verified Bridge Reference"
+        detail = (
+            "The source transaction hash or sender wallet is referenced in calldata "
+            "to a catalogued bridge/router or in a log emitted by one."
+        )
+    elif hash_in_input or hash_in_logs:
+        status = "Origin transaction hash referenced"
+        detail = (
+            "The origin hash appears in destination calldata/logs, but no binding "
+            "reference from a catalogued bridge/router was verified."
+        )
+    elif sender_in_input or sender_in_logs:
+        status = "Sender wallet referenced (unverified)"
+        detail = (
+            "The source sender address appears in destination calldata/logs; this "
+            "alone does not establish a bridge transaction link."
+        )
+    else:
+        status = "No explicit origin reference found"
+        detail = (
+            "No origin transaction hash or source sender reference was found in the "
+            "destination transaction input or receipt logs."
+        )
+
+    return {
+        "status": status,
+        "detail": detail,
+        "origin_hash_in_input": hash_in_input,
+        "origin_hash_in_logs": hash_in_logs,
+        "origin_sender_in_input": sender_in_input,
+        "origin_sender_in_logs": sender_in_logs,
+        "bridge_sender_log_match": bridge_sender_log_match,
+        "bridge_names": bridge_names,
+    }
 
 
 def format_native_value(value_hex: Any, symbol: str) -> str:
@@ -1917,8 +2164,124 @@ def diagnose_transaction(
     }
 
 
+def classify_operation(result: Dict[str, Any]) -> Dict[str, str]:
+    """Classify a confirmed operation from its route and radar asset match."""
+    source_chain = str(result.get("chain") or "Unknown")
+    destination_chain = str(result.get("destination_chain") or "Unknown")
+    same_network = source_chain.casefold() == destination_chain.casefold()
+    radar = result.get("radar")
+    transfer = (
+        radar.get("transfer")
+        if isinstance(radar, dict) and radar.get("state") == "found"
+        else None
+    )
+
+    if not isinstance(transfer, dict):
+        source_assets = result.get("origin_assets", [])
+        source_symbols = [
+            str(asset.get("symbol") or asset.get("asset_id") or "Unknown asset")
+            for asset in source_assets
+            if isinstance(asset, dict)
+        ]
+        source_asset_flow = ", ".join(dict.fromkeys(source_symbols)) or "Unknown asset"
+        return {
+            "category": "Operation not confirmed",
+            "operation_type": "Unconfirmed",
+            "network_route": f"{source_chain} -> {destination_chain}",
+            "asset_flow": f"{source_asset_flow} -> Unconfirmed destination asset",
+            "verification_method": "No qualifying destination transfer match",
+            "verdict": "Destination operation not confirmed",
+        }
+
+    match_type = (
+        radar.get("match_type", transfer.get("match_type", "same_token"))
+        if isinstance(radar, dict)
+        else transfer.get("match_type", "same_token")
+    )
+    if match_type == "swap":
+        category = "Same-Network Swap" if same_network else "Cross-Chain Swap"
+        operation_type = "Swap" if same_network else "Cross-Chain Swap"
+        verification_method = "DefiLlama historical USD equivalent"
+    elif same_network:
+        category = "Same-Network Transfer"
+        operation_type = "Transfer"
+        reference_check = (
+            radar.get("reference_check") if isinstance(radar, dict) else None
+        )
+        if (
+            isinstance(reference_check, dict)
+            and reference_check.get("status") == "Verified Bridge Reference"
+        ):
+            verification_method = "Bridge router signature"
+        else:
+            verification_method = (
+                "Direct log match (indexed destination transfer; wallet, asset, and amount)"
+            )
+    else:
+        category = "Cross-Chain Bridge"
+        operation_type = "Bridge"
+        reference_check = (
+            radar.get("reference_check") if isinstance(radar, dict) else None
+        )
+        if (
+            isinstance(reference_check, dict)
+            and reference_check.get("status") == "Verified Bridge Reference"
+        ):
+            verification_method = "Bridge router signature"
+        else:
+            verification_method = (
+                "Direct log match (indexed destination transfer; wallet, asset, and amount)"
+            )
+
+    origin_asset = transfer.get("matched_origin_asset")
+    destination_asset = transfer.get("destination_asset")
+    origin_symbol = (
+        transfer.get("origin_symbol")
+        or (
+            origin_asset.get("symbol")
+            if isinstance(origin_asset, dict)
+            else None
+        )
+        or transfer.get("matched_asset")
+        or "Unknown asset"
+    )
+    destination_symbol = (
+        transfer.get("destination_symbol")
+        or (
+            destination_asset.get("symbol")
+            if isinstance(destination_asset, dict)
+            else None
+        )
+        or transfer.get("matched_asset")
+        or "Unknown asset"
+    )
+    origin_amount = transfer.get("origin_amount")
+    destination_amount = transfer.get("destination_amount")
+    asset_flow = (
+        f"{origin_amount} {origin_symbol} -> "
+        f"{destination_amount} {destination_symbol}"
+    )
+    return {
+        "category": category,
+        "operation_type": operation_type,
+        "network_route": f"{source_chain} -> {destination_chain}",
+        "asset_flow": asset_flow,
+        "verification_method": verification_method,
+        "verdict": f"{category} Confirmed",
+    }
+
+
 def build_audit_report(result: Dict[str, Any]) -> str:
     radar = result.get("radar")
+    classification = result.get("operation_classification")
+    if not isinstance(classification, dict):
+        classification = classify_operation(result)
+    transfer: Dict[str, Any] = {}
+    historical_value_summary = "Historical USD valuation: unavailable."
+    reference_summary = [
+        "Status: not checked",
+        "Detail: no confirmed destination transfer was available for inspection.",
+    ]
     if isinstance(radar, dict) and radar.get("state") == "found":
         transfer = radar["transfer"]
         match_type = radar.get("match_type", transfer.get("match_type", "same_token"))
@@ -1928,28 +2291,29 @@ def build_audit_report(result: Dict[str, Any]) -> str:
             destination_hash,
         )
         destination_hash_display = (
-            f"{destination_hash} ({destination_url})"
+            f"[{destination_hash}]({destination_url})"
             if destination_url
             else str(destination_hash or "Unavailable")
         )
-        transfer_time = datetime.fromtimestamp(
-            transfer["timestamp"],
-            timezone.utc,
-        ).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        transfer_time = format_utc_timestamp(transfer["timestamp"])
         if match_type == "swap":
             radar_summary = [
                 "CONFIRMED: different-token swap matched by historical USD value.",
                 f"Destination hash: {destination_hash_display}",
                 f"Destination block: {transfer.get('block_number_int') or transfer.get('block_number') or 'N/A'}",
-                f"Source amount: {transfer.get('origin_amount')} {transfer.get('origin_symbol')}",
-                f"Received amount: {transfer.get('destination_amount')} {transfer.get('destination_symbol')}",
+                f"Source amount: {transfer.get('origin_amount')} "
+                f"{escape_markdown_text(transfer.get('origin_symbol'))}",
+                f"Received amount: {transfer.get('destination_amount')} "
+                f"{escape_markdown_text(transfer.get('destination_symbol'))}",
                 f"Estimated USD sent: ${transfer.get('origin_value_usd')}",
                 f"Estimated USD received: ${transfer.get('destination_value_usd')}",
                 f"Estimated value efficiency: {transfer.get('efficiency_percent')}%",
                 f"Destination block time: {transfer_time}",
             ]
         else:
-            token = transfer.get("matched_asset", transfer.get("asset", "asset"))
+            token = escape_markdown_text(
+                transfer.get("matched_asset", transfer.get("asset", "asset"))
+            )
             radar_summary = [
                 "CONFIRMED: wallet and equivalent asset match; amount is within the 97%-100% range.",
                 f"Destination hash: {destination_hash_display}",
@@ -1957,9 +2321,19 @@ def build_audit_report(result: Dict[str, Any]) -> str:
                 f"Token: {token}",
                 f"Amount sent: {transfer.get('origin_amount')} {token}",
                 f"Amount received: {transfer.get('destination_amount')} {token}",
-                f"Estimated fee difference: {transfer.get('fee_percent')}%",
+                f"Estimated fee difference: {format_fee_percent(transfer.get('fee_percent'))}%",
                 f"Destination block time: {transfer_time}",
             ]
+        if (
+            transfer.get("origin_value_usd") is not None
+            and transfer.get("destination_value_usd") is not None
+            and transfer.get("efficiency_percent") is not None
+        ):
+            historical_value_summary = (
+                f"Estimated USD sent: ${transfer['origin_value_usd']}; "
+                f"received: ${transfer['destination_value_usd']}; "
+                f"value efficiency: {transfer['efficiency_percent']}%."
+            )
     elif isinstance(radar, dict) and radar.get("state") == "candidates":
         radar_summary = [
             (
@@ -1980,10 +2354,7 @@ def build_audit_report(result: Dict[str, Any]) -> str:
             "NOT CONFIRMED: no compatible incoming transfer was found in the queried windows.",
             (
                 "Last time searched: "
-                + datetime.fromtimestamp(
-                    radar["searched_through"],
-                    timezone.utc,
-                ).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+                + format_utc_timestamp(radar["searched_through"])
                 if isinstance(radar.get("searched_through"), int)
                 else "Last time searched: N/A"
             ),
@@ -2004,10 +2375,65 @@ def build_audit_report(result: Dict[str, Any]) -> str:
         radar_summary = [
             "NOT RUN: the radar was not run because the source failed or block data is missing."
         ]
+    if isinstance(radar, dict) and radar.get("state") in {"candidates", "incomplete"}:
+        for candidate in radar.get("candidates", [])[:5]:
+            if not isinstance(candidate, dict):
+                continue
+            candidate_hash = candidate.get("hash")
+            candidate_url = build_transaction_explorer_url(
+                result.get("destination_chain"),
+                candidate_hash,
+            )
+            if candidate_url and isinstance(candidate_hash, str):
+                radar_summary.append(
+                    f"Candidate destination hash: [{candidate_hash}]({candidate_url})"
+                )
     if isinstance(radar, dict) and radar.get("swap_matching_enabled"):
         radar_summary.append("Different-token USD-value matching: enabled")
     if isinstance(radar, dict) and radar.get("swap_error"):
-        radar_summary.append(f"Historical price lookup: {radar['swap_error']}")
+        radar_summary.append(
+            "Historical price lookup: "
+            + escape_markdown_text(radar["swap_error"])
+        )
+    if isinstance(radar, dict) and radar.get("price_error"):
+        radar_summary.append(
+        "Historical price lookup: "
+        + escape_markdown_text(radar["price_error"])
+        )
+    reference_check = radar.get("reference_check") if isinstance(radar, dict) else None
+    if isinstance(reference_check, dict):
+        reference_summary = [
+            f"Status: {reference_check.get('status', 'Not checked')}",
+            "Detail: "
+            + escape_markdown_text(
+                reference_check.get("detail", "No details available.")
+            ),
+            (
+                "Source hash in destination input: "
+                + ("yes" if reference_check.get("origin_hash_in_input") else "no")
+            ),
+            (
+                "Source hash in destination logs: "
+                + ("yes" if reference_check.get("origin_hash_in_logs") else "no")
+            ),
+            (
+                "Source sender referenced: "
+                + (
+                    "yes"
+                    if reference_check.get("origin_sender_in_input")
+                    or reference_check.get("origin_sender_in_logs")
+                    else "no"
+                )
+            ),
+            "Bridge/router identified: "
+            + (
+                ", ".join(
+                    escape_markdown_text(name)
+                    for name in reference_check.get("bridge_names", [])
+                )
+                or "none"
+            ),
+        ]
 
     bridge_matches = result.get("bridge_matches", [])
     bridges = (
@@ -2024,7 +2450,8 @@ def build_audit_report(result: Dict[str, Any]) -> str:
     origin_assets = result.get("origin_assets", [])
     assets_summary = (
         "; ".join(
-            f"{asset.get('amount', 'N/A')} {asset.get('symbol', 'asset')} "
+            f"{asset.get('amount', 'N/A')} "
+            f"{escape_markdown_text(asset.get('symbol', 'asset'))} "
             f"({asset.get('token_address') or 'native'})"
             for asset in origin_assets
         )
@@ -2037,34 +2464,58 @@ def build_audit_report(result: Dict[str, Any]) -> str:
     origin_hash = result.get("tx_hash")
     origin_url = build_transaction_explorer_url(result.get("chain"), origin_hash)
     origin_hash_display = (
-        f"{origin_hash} ({origin_url})"
+        f"[{origin_hash}]({origin_url})"
         if origin_url
         else str(origin_hash or "Unavailable")
+    )
+    source_detection = result.get("source_network_detection", "Manual selection")
+    origin_timestamp = result.get("origin_timestamp")
+    source_time = (
+        format_utc_timestamp(origin_timestamp)
+        if isinstance(origin_timestamp, int)
+        else "Unavailable"
     )
 
     return "\n".join(
         [
-            "4KISCAN — INTERNAL CROSS-CHAIN AUDIT",
+            "## 4kiscan — Internal transaction audit",
             "",
-            "SOURCE TRANSACTION",
-            f"Hash: {origin_hash_display}",
-            f"Network: {result.get('chain', 'N/A')}",
-            f"Status: {origin_state}",
-            f"Verdict: {result.get('title', 'N/A')} [{result.get('status_code', 'N/A')}]",
+            "**Source transaction**",
+            f"- Hash: {origin_hash_display}",
+            f"- Network: {result.get('chain', 'N/A')}",
+            f"- Network selection: {source_detection}",
+            f"- Source timestamp: {source_time}",
+            f"- Status: {origin_state}",
+            f"- Verdict: {result.get('title', 'N/A')} [{result.get('status_code', 'N/A')}]",
             "",
-            "DESTINATION",
-            f"Wallet: {result.get('destination_wallet', 'N/A')}",
-            f"Network: {result.get('destination_chain', 'N/A')}",
+            "**Destination**",
+            f"- Wallet: `{result.get('destination_wallet', 'N/A')}`",
+            f"- Network: {result.get('destination_chain', 'N/A')}",
             "",
-            "ROUTE AND SOURCE ASSETS",
-            f"Bridge/router: {bridges}",
-            f"Assets/amounts: {assets_summary}",
+            "**Operation Classification**",
+            f"- Category: {classification['category']}",
+            f"- Operation Type: {classification['operation_type']}",
+            f"- Network Route: {classification['network_route']}",
+            f"- Asset Flow: {classification['asset_flow']}",
+            f"- Verification Method: {classification['verification_method']}",
             "",
-            "DESTINATION RADAR",
-            *radar_summary,
+            "**Route and source assets**",
+            f"- Bridge/router: {bridges}",
+            f"- Assets/amounts: {assets_summary}",
             "",
-            "Note: wallet, asset, amount, and time correlation alone does not prove "
-            "causation between the hashes.",
+            "**Historical USD value comparison**",
+            historical_value_summary,
+            "",
+            "**Destination radar**",
+            *[f"- {line}" for line in radar_summary],
+            "",
+            "**Destination logs/reference inspection**",
+            *[f"- {line}" for line in reference_summary],
+            "",
+            "> A wallet, asset, amount, and time correlation alone does not prove "
+            "causation between the hashes. A verified bridge reference requires the "
+            "source hash in calldata to a catalogued bridge/router or in a log emitted "
+            "by one.",
         ]
     )
 
@@ -2086,6 +2537,14 @@ def transaction_explorer_markdown(chain_name: str, tx_hash: Any) -> str:
     if explorer_url is None or not isinstance(tx_hash, str):
         return "Unavailable"
     return f"[`{tx_hash}`]({explorer_url})"
+
+
+def escape_markdown_text(value: Any) -> str:
+    return re.sub(
+        r"([\\`*_{}\[\]()#+.!|<>~-])",
+        r"\\\1",
+        str(value),
+    )
 
 
 def copy_button(text: str) -> None:
@@ -2122,35 +2581,113 @@ def main() -> None:
     )
 
     api_key = get_alchemy_api_key()
-    enable_swap_matching = st.sidebar.checkbox(
-        "Enable Cross-Chain Swap Matching (Different Tokens)",
-        value=False,
-        help=(
-            "Compare historical USD values with the public DefiLlama Coins API. "
-            "Same-token matching remains enabled independently."
-        ),
-    )
-
-    origin_column, destination_column = st.columns(2)
-    chain_name = origin_column.selectbox("Select Origin Network", list(CHAINS))
-    destination_chain = destination_column.selectbox(
-        "Select Destination Network",
-        list(CHAINS),
-        index=list(CHAINS).index("Arbitrum"),
-    )
     tx_hash = st.text_input(
-        "Source Transaction Hash",
+        "Transaction Hash",
         placeholder="0x + 64 hexadecimal characters",
+        key="transaction_hash_input",
     ).strip()
+    network_names = list(CHAINS)
+    source_network_key = "source_network_selection"
+    st.session_state.setdefault(source_network_key, network_names[0])
+
+    detection_key = "_detected_transaction_hash"
+    detection_result_key = "_transaction_network_detection"
+    detection_result = st.session_state.get(detection_result_key)
+    valid_tx_hash = bool(TX_HASH_PATTERN.fullmatch(tx_hash))
+    detection_unblocked = (
+        st.session_state.get(detection_key) == tx_hash
+        and isinstance(detection_result, dict)
+        and detection_result.get("state") == "unavailable"
+        and bool(api_key)
+    )
+    if valid_tx_hash and (
+        st.session_state.get(detection_key) != tx_hash or detection_unblocked
+    ):
+        if api_key:
+            with st.spinner("Detecting the source network across supported chains..."):
+                detection_result = detect_transaction_network(tx_hash, api_key)
+        else:
+            detection_result = {
+                "state": "unavailable",
+                "networks": [],
+                "errors": [],
+            }
+        st.session_state[detection_key] = tx_hash
+        st.session_state[detection_result_key] = detection_result
+        if detection_result["state"] == "detected":
+            st.session_state[source_network_key] = detection_result["networks"][0]
+
+    chain_name = st.selectbox(
+        "Source Network",
+        network_names,
+        key=source_network_key,
+    )
+    if valid_tx_hash and isinstance(detection_result, dict):
+        detection_state = detection_result.get("state")
+        detected_networks = detection_result.get("networks", [])
+        if detection_state == "detected" and detected_networks:
+            detected_network = detected_networks[0]
+            if chain_name == detected_network:
+                st.success(f"Source network automatically detected: {detected_network}.")
+                network_detection_report = f"Automatically detected: {detected_network}"
+            else:
+                st.info(
+                    f"Detected {detected_network}; currently using the manually "
+                    f"selected network {chain_name}."
+                )
+                network_detection_report = (
+                    f"Automatically detected {detected_network}; manually overridden "
+                    f"to {chain_name}"
+                )
+        elif detection_state == "ambiguous":
+            st.warning(
+                "The transaction hash was found on multiple networks "
+                f"({', '.join(detected_networks)}). Select the source network manually."
+            )
+            network_detection_report = (
+                f"Ambiguous across {', '.join(detected_networks)}; "
+                f"manual selection: {chain_name}"
+            )
+        elif detection_state == "not_found":
+            st.info(
+                "The hash was not found on the supported networks; select the source "
+                "network manually."
+            )
+            network_detection_report = f"Not found automatically; manual selection: {chain_name}"
+        elif detection_state == "incomplete":
+            st.warning(
+                "Automatic detection could not query every network. Select the source "
+                f"network manually. {'; '.join(detection_result.get('errors', []))}"
+            )
+            network_detection_report = (
+                f"Detection incomplete; manual selection: {chain_name}"
+            )
+        elif detection_state == "unavailable":
+            st.info(
+                "Automatic detection is unavailable until the Alchemy API key is "
+                "configured. Select the source network manually."
+            )
+            network_detection_report = f"Unavailable; manual selection: {chain_name}"
+        else:
+            network_detection_report = f"Manual selection: {chain_name}"
+    else:
+        network_detection_report = f"Manual selection: {chain_name}"
+
     destination_wallet = st.text_input(
-        "Expected Destination Wallet",
+        "Destination Wallet",
         placeholder="0x + 40 hexadecimal characters",
+        key="destination_wallet_input",
     ).strip()
+    destination_chain = st.selectbox(
+        "Destination Network",
+        network_names,
+        index=network_names.index("Arbitrum"),
+        key="destination_network_selection",
+    )
 
     analyze = st.button(
         "Analyze Transaction",
         type="primary",
-        use_container_width=True,
     )
     if not analyze:
         return
@@ -2200,6 +2737,7 @@ def main() -> None:
         return
 
     result["destination_chain"] = destination_chain
+    result["source_network_detection"] = network_detection_report
     result["radar"] = None
     st.subheader("Destination Radar (Receiving Network)")
     if result["status"] != "0x1":
@@ -2225,23 +2763,89 @@ def main() -> None:
                     destination_wallet,
                     origin_timestamp,
                     result["origin_assets"],
-                    enable_swap_matching,
                     origin_chain=chain_name,
                 )
             result["origin_timestamp"] = origin_timestamp
             result["radar"] = radar_result
+            transfer_for_inspection = (
+                radar_result.get("transfer")
+                if radar_result["state"] == "found"
+                else (
+                    radar_result["candidates"][0]
+                    if radar_result.get("candidates")
+                    else None
+                )
+            )
+            if isinstance(transfer_for_inspection, dict):
+                transfer = transfer_for_inspection
+                origin_asset = transfer.get("matched_origin_asset")
+                destination_asset = transfer.get("destination_asset")
+                if isinstance(origin_asset, dict) and isinstance(destination_asset, dict):
+                    try:
+                        usd_comparison = compare_historical_usd_values(
+                            origin_asset,
+                            destination_asset,
+                            chain_name,
+                            destination_chain,
+                            origin_timestamp,
+                            transfer["timestamp"],
+                        )
+                    except DefiLlamaError as error:
+                        radar_result["price_error"] = str(error)
+                    else:
+                        if usd_comparison is not None:
+                            transfer["origin_value_usd"] = usd_comparison[
+                                "origin_usd"
+                            ].quantize(Decimal("0.01"))
+                            transfer["destination_value_usd"] = usd_comparison[
+                                "destination_usd"
+                            ].quantize(Decimal("0.01"))
+                            transfer["efficiency_percent"] = usd_comparison[
+                                "efficiency_percent"
+                            ].quantize(Decimal("0.01"))
+                        elif not radar_result.get("price_error"):
+                            radar_result["price_error"] = (
+                                "DefiLlama did not return a historical price for the "
+                                "source or destination asset."
+                            )
+
+                with st.spinner("Inspecting destination transaction references..."):
+                    reference_check = verify_destination_bridge_reference(
+                        api_key,
+                        destination_chain,
+                        transfer.get("hash"),
+                        tx_hash,
+                        transaction.get("from"),
+                    )
+                radar_result["reference_check"] = reference_check
+                transfer["reference_check"] = reference_check
+
             if radar_result.get("swap_error"):
                 st.warning(
-                    "Cross-chain swap pricing could not be completed; same-token "
+                    "Swap price matching could not be completed; same-token "
                     f"matching remains available. {radar_result['swap_error']}"
+                )
+            if radar_result.get("price_error"):
+                st.warning(
+                    "Historical USD comparison could not be completed. Existing "
+                    f"same-token or swap matching is unchanged. {radar_result['price_error']}"
                 )
             if radar_result["state"] == "found":
                 transfer = radar_result["transfer"]
+                classification = classify_operation(result)
+                result["operation_classification"] = classification
                 result["color"] = "green"
                 result["indicator"] = "🟢"
+                result["title"] = classification["verdict"]
+                if classification["category"] == "Same-Network Transfer":
+                    result["status_code"] = "SAME_NETWORK_TRANSFER_CONFIRMED"
+                elif classification["category"] == "Same-Network Swap":
+                    result["status_code"] = "SAME_NETWORK_SWAP_CONFIRMED"
+                elif classification["category"] == "Cross-Chain Bridge":
+                    result["status_code"] = "CROSS_CHAIN_BRIDGE_CONFIRMED"
+                else:
+                    result["status_code"] = "CROSS_CHAIN_SWAP_CONFIRMED"
                 if radar_result.get("match_type") == "swap":
-                    result["title"] = "✅ Cross-Chain Swap Match Confirmed"
-                    result["status_code"] = "DESTINATION_SWAP_USD_VALUE_MATCH"
                     result["notes"] = (
                         f"Different-token transfer matched by historical USD value: "
                         f"${transfer.get('destination_value_usd')} received vs "
@@ -2249,29 +2853,23 @@ def main() -> None:
                         f"({transfer.get('efficiency_percent')}% value efficiency)."
                     )
                 else:
-                    result["title"] = "✅ Cross-Chain Settlement Confirmed"
-                    result["status_code"] = "DESTINATION_CREDIT_FEE_TOLERANCE_MATCH"
+                    formatted_fee = format_fee_percent(
+                        transfer.get("fee_percent")
+                    )
                     result["notes"] = (
-                        f"The radar found an incoming transfer to the specified wallet "
-                        f"on {destination_chain}: received {transfer.get('destination_amount')} "
+                        f"The radar found a qualifying incoming transfer to the specified "
+                        f"wallet on {destination_chain}: received "
+                        f"{transfer.get('destination_amount')} "
                         f"{transfer.get('matched_asset', transfer['asset'])}, from "
                         f"{transfer.get('origin_amount')} "
                         f"{transfer.get('matched_asset', transfer['asset'])} at source. "
-                        f"Estimated variation: {transfer.get('fee_percent')}%."
+                        f"Estimated variation: {formatted_fee}%."
                     )
             if radar_result["state"] == "found":
                 transfer = radar_result["transfer"]
-                transfer_time = datetime.fromtimestamp(
-                    transfer["timestamp"],
-                    timezone.utc,
-                ).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
-                st.success(
-                    (
-                        "✅ Cross-Chain Swap Match Confirmed:"
-                        if radar_result.get("match_type") == "swap"
-                        else "✅ Cross-Chain Settlement Confirmed with Fee Tolerance:"
-                    )
-                )
+                transfer_time = format_utc_timestamp(transfer["timestamp"])
+                classification = result["operation_classification"]
+                st.success(f"🟢 {classification['verdict']}:")
                 st.markdown(
                     "**Destination hash:** "
                     + transaction_explorer_markdown(
@@ -2311,9 +2909,49 @@ def main() -> None:
                         f"**Amount received:** {transfer.get('destination_amount')} "
                         f"{transfer.get('matched_asset', transfer['asset'])}"
                     )
-                    st.write(f"**Estimated fee:** {transfer.get('fee_percent')}%")
+                    st.write(
+                        f"**Estimated fee:** "
+                        f"{format_fee_percent(transfer.get('fee_percent'))}%"
+                    )
+                    if (
+                        transfer.get("origin_value_usd") is not None
+                        and transfer.get("destination_value_usd") is not None
+                        and transfer.get("efficiency_percent") is not None
+                    ):
+                        st.write(
+                            f"**Estimated USD Received:** "
+                            f"${transfer['destination_value_usd']} vs Sent: "
+                            f"${transfer['origin_value_usd']} "
+                            f"(Efficiency: {transfer['efficiency_percent']}%)"
+                        )
+                    else:
+                        st.caption(
+                            "Historical USD pricing was unavailable; the same-token "
+                            "match uses the existing 97%-100% amount validation."
+                        )
                 st.write(f"**Destination wallet:** `{transfer['to']}`")
                 st.write(f"**Estimated destination block time:** {transfer_time}")
+                reference_check = radar_result.get("reference_check", {})
+                if isinstance(reference_check, dict):
+                    reference_status = reference_check.get(
+                        "status",
+                        "Not checked",
+                    )
+                    st.write(
+                        f"**Destination bridge reference status:** {reference_status}"
+                    )
+                    bridge_names = reference_check.get("bridge_names", [])
+                    if bridge_names:
+                        st.write(
+                            "**Bridge/router referenced:** "
+                            + ", ".join(bridge_names)
+                        )
+                    if reference_status == "Verified Bridge Reference":
+                        st.success(reference_check["detail"])
+                    elif reference_status == "Lookup failed":
+                        st.warning(reference_check["detail"])
+                    else:
+                        st.caption(reference_check.get("detail", ""))
                 if radar_result.get("match_type") == "swap":
                     st.caption(
                         "Historical USD pricing is an estimate from DefiLlama, not an "
@@ -2335,34 +2973,40 @@ def main() -> None:
                 )
             elif radar_result["state"] in {"candidates", "incomplete"}:
                 if radar_result["candidates"]:
-                    if destination_chain != chain_name:
-                        result["color"] = "yellow"
-                        result["indicator"] = "🟡"
-                        result["title"] = (
-                            "Source successful; candidates found without an acceptable token/fee match"
+                    route_label = (
+                        "same-network"
+                        if destination_chain == chain_name
+                        else "cross-network"
+                    )
+                    result["color"] = "yellow"
+                    result["indicator"] = "🟡"
+                    result["title"] = (
+                        f"Source successful; {route_label} candidates found without "
+                        "a verified asset/value match"
+                    )
+                    result["status_code"] = "DESTINATION_CANDIDATES_UNVERIFIED"
+                    result["notes"] = (
+                        "Incoming transfers to the wallet were found in the queried "
+                        "windows, but none matched the required same-token amount range "
+                        "or different-token historical USD range. The operation is not "
+                        "confirmed."
+                    )
+                    candidate_reference = radar_result.get("reference_check")
+                    if isinstance(candidate_reference, dict):
+                        st.write(
+                            "**Top candidate reference status:** "
+                            f"{candidate_reference.get('status', 'Not checked')}"
                         )
-                        result["status_code"] = "DESTINATION_CANDIDATES_UNVERIFIED"
-                        result["notes"] = (
-                            "Incoming transfers to the wallet were found in the queried "
-                            "windows, but none match the logical asset and amount within "
-                            "97%-100% of the source amount. Delivery is not confirmed."
-                        )
+                        st.caption(candidate_reference.get("detail", ""))
                     st.warning(
-                        (
-                            "Possible incoming transfers: none matched the same-token "
-                            "97%-100% range or the different-token 85%-98% historical USD "
-                            "value range, so credit is not confirmed."
-                            if enable_swap_matching
-                            else "Possible incoming transfers: they do not meet the token "
-                            "equivalence and/or the allowed 97%-100% amount range, so they "
-                            "are not considered confirmed credits."
-                        )
+                        "Possible incoming transfers: none matched the same-token "
+                        "97%-100% range or the different-token 85%-98% historical USD "
+                        "value range, so credit is not confirmed."
                     )
                     for candidate in radar_result["candidates"][:10]:
-                        candidate_time = datetime.fromtimestamp(
-                            candidate["timestamp"],
-                            timezone.utc,
-                        ).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+                        candidate_time = format_utc_timestamp(
+                            candidate["timestamp"]
+                        )
                         st.write(
                             f"- Hash: "
                             + transaction_explorer_markdown(
@@ -2392,15 +3036,20 @@ def main() -> None:
                 total_checked = sum(
                     window["transfers_checked"] for window in radar_result["windows"]
                 )
-                searched_through = datetime.fromtimestamp(
-                    radar_result["searched_through"],
-                    timezone.utc,
-                ).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
-                st.info(
-                    "No incoming transfer to the wallet was found in the available "
-                    "range. The bridge may still be processing the operation, or "
-                    "crediting may take longer."
+                searched_through = format_utc_timestamp(
+                    radar_result["searched_through"]
                 )
+                if destination_chain == chain_name:
+                    st.info(
+                        "No qualifying incoming transfer was found on the selected "
+                        "network. The operation remains unconfirmed by the radar."
+                    )
+                else:
+                    st.info(
+                        "No incoming transfer to the wallet was found in the available "
+                        "range. The bridge may still be processing the operation, or "
+                        "crediting may take longer."
+                    )
                 st.caption(
                     f"Progressive windows completed (1 min, 5 min, 30 min, 4 h, and 48 h); "
                     f"{total_checked} transfers "
@@ -2419,6 +3068,9 @@ def main() -> None:
                 f"remains unchanged: {error}"
             )
 
+    if not isinstance(result.get("operation_classification"), dict):
+        result["operation_classification"] = classify_operation(result)
+
     if result["logs_warning"]:
         st.warning(result["logs_warning"])
 
@@ -2436,20 +3088,7 @@ def main() -> None:
     st.subheader("📋 Internal Audit Report")
     audit_report = build_audit_report(result)
     with st.container(border=True, key="audit_report"):
-        st.markdown(
-            "**Source explorer:** "
-            + transaction_explorer_markdown(chain_name, tx_hash)
-        )
-        radar = result.get("radar")
-        if isinstance(radar, dict) and radar.get("state") == "found":
-            st.markdown(
-                "**Destination explorer:** "
-                + transaction_explorer_markdown(
-                    destination_chain,
-                    radar["transfer"].get("hash"),
-                )
-            )
-        st.code(audit_report, language="text")
+        st.markdown(audit_report)
     copy_button(audit_report)
 
     st.subheader("Observed Data")
@@ -2462,10 +3101,7 @@ def main() -> None:
     middle.metric("Block", result["block_number"] or "Pending")
     right.metric("Logs", result["log_count"])
     if result.get("origin_timestamp") is not None:
-        origin_time_display = datetime.fromtimestamp(
-            result["origin_timestamp"],
-            timezone.utc,
-        ).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        origin_time_display = format_utc_timestamp(result["origin_timestamp"])
         st.write(f"**Source Timestamp:** {origin_time_display}")
     st.write(f"**Sender (`from`):** `{result['from'] or 'N/A'}`")
     st.write(
