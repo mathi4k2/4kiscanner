@@ -7,6 +7,8 @@
 (function () {
   "use strict";
   const K = (globalThis.Kiscan = globalThis.Kiscan || {});
+  const locale = () => typeof K.getLocale === "function" ? K.getLocale() : "es";
+  const t = (es, en, pt) => locale() === "en" ? en : locale() === "pt" ? pt : es;
 
   // ───────────── Redes soportadas ─────────────
   const CHAINS = {
@@ -127,7 +129,7 @@
     "Polygon:0x2791bca1f2de4661ed88a30c99a7a9449aa84174": "USDC.e (bridged)",
     "Optimism:0x7f5c764cbc14f9669b88837ca1490cca17c31607": "USDC.e (bridged)",
     "Arbitrum:0xff970a61a04b1ca14834a43f5de4533ebddb5cc8": "USDC.e (bridged)",
-    "Optimism:0x94b008aa00579c1307b0ef2c499ad98a8ce58e58": "USDT (bridged, legado)",
+    get "Optimism:0x94b008aa00579c1307b0ef2c499ad98a8ce58e58"() { return t("USDT (bridged, legado)", "USDT (bridged, legacy)", "USDT (bridged, legado)"); },
     "Optimism:0x01bff41798a0bcf287b996046ca68b395dbc1071": "USDT0",
   };
 
@@ -143,15 +145,15 @@
     "Curve",
     "Address Provider",
     "dex",
-    { caveat: "El directorio de Curve advierte que puede contener datos desactualizados." },
+    { caveat: t("El directorio de Curve advierte que puede contener datos desactualizados.", "Curve's directory warns that it may contain outdated data.", "O diretório da Curve alerta que pode conter dados desatualizados.") },
   ];
-  const CURVE_CAVEAT = { caveat: "El directorio de Curve advierte que puede contener datos desactualizados." };
+  const CURVE_CAVEAT = { caveat: t("El directorio de Curve advierte que puede contener datos desactualizados.", "Curve's directory warns that it may contain outdated data.", "O diretório da Curve alerta que pode conter dados desatualizados.") };
   const UNI_V3 = (factory, router) => [
     [factory, "Uniswap V3 Factory", "Uniswap", "Factory", "dex"],
     [router, "Uniswap V3 SwapRouter02", "Uniswap", "SwapRouter02", "dex"],
   ];
   const POS_SYSTEM = {
-    caveat: "Contrato de sistema listado en el génesis de Polygon; no es el punto de entrada de usuario del bridge.",
+    caveat: t("Contrato de sistema listado en el génesis de Polygon; no es el punto de entrada de usuario del bridge.", "System contract listed in Polygon's genesis; it is not the bridge's user entry point.", "Contrato de sistema listado no genesis da Polygon; não é o ponto de entrada do usuário na ponte."),
   };
 
   const VERIFIED = {
@@ -163,7 +165,7 @@
       ...SOCKET,
       ["0x8315177ab297ba92a06054ce80a67ed4dbd7ed3a", "Arbitrum One L1 Bridge", "Arbitrum Native Bridge", "L1 Bridge", "bridge"],
       ["0x4dbd4fc535ac27206064b68ffcf827b0a60bab3f", "Arbitrum One Delayed Inbox", "Arbitrum Native Bridge", "Delayed Inbox", "bridge"],
-      ["0x401f6c983ea34274ec46f84d70b31c151321188b", "Polygon PoS Deposit Manager Proxy", "Polygon PoS Native Bridge", "Contrato de sistema", "bridge", POS_SYSTEM],
+      ["0x401f6c983ea34274ec46f84d70b31c151321188b", "Polygon PoS Deposit Manager Proxy", "Polygon PoS Native Bridge", t("Contrato de sistema", "System contract", "Contrato de sistema"), "bridge", POS_SYSTEM],
       ["0x5c69bee701ef814a2b6a3edd4b1652cb9cc5aa6f", "Uniswap V2 Factory", "Uniswap", "Factory", "dex"],
       ["0x7a250d5630b4cf539739df2c5dacb4c659f2488d", "Uniswap V2 Router02", "Uniswap", "Router", "dex"],
       ...UNI_V3("0x1f98431c8ad98523631ae4a59f267346ea31f984", "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45"),
@@ -177,7 +179,7 @@
       ["0x11984dc4465481512eb5b777e44061c158cf2259", "Connext Amarok Core", "Connext", "Core", "bridge"],
       ["0x88dcdc47d2f83a99cf0000fdf667a468bb958a78", "Celer cBridge Pool Bridge", "Celer cBridge", "Bridge", "bridge"],
       ...SOCKET,
-      ["0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861", "Polygon PoS Child Chain", "Polygon PoS Native Bridge", "Contrato de sistema", "bridge", POS_SYSTEM],
+      ["0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861", "Polygon PoS Child Chain", "Polygon PoS Native Bridge", t("Contrato de sistema", "System contract", "Contrato de sistema"), "bridge", POS_SYSTEM],
       ["0x9e5a52f57b3038f1b8eee45f28b3c1967e22799c", "Uniswap V2 Factory", "Uniswap", "Factory", "dex"],
       ["0xedf6066a2b290c185783862c7f4776a2c8077ad1", "Uniswap V2 Router02", "Uniswap", "Router", "dex"],
       ...UNI_V3("0x1f98431c8ad98523631ae4a59f267346ea31f984", "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45"),

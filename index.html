@@ -18,7 +18,7 @@
 
   <header class="masthead">
     <div class="masthead__inner">
-      <a class="brand" href="./" aria-label="4kiscan, inicio">
+      <a class="brand" href="./" aria-label="4kiscan, home" data-i18n-aria-label="brandLabel">
         <svg class="brand__mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M9 9h6v6H9zM17 17h6v6h-6z"/><path d="M15 12h5v5"/></svg>
         <span class="brand__name">4kiscan</span>
       </a>
@@ -33,13 +33,13 @@
       </label>
       <button type="button" class="link-status" id="open-settings" aria-haspopup="dialog">
         <span class="link-status__dot" id="link-dot" aria-hidden="true"></span>
-        <span id="link-label">Conexión con la red</span>
+        <span id="link-label">Network connection</span>
       </button>
     </div>
   </header>
 
   <main class="layout" id="main">
-    <aside class="transcript" id="transcript" aria-label="Lo que llevamos hasta ahora" hidden></aside>
+    <aside class="transcript" id="transcript" aria-label="Your answers so far" data-i18n-aria-label="transcriptAria" hidden></aside>
     <section class="stage" id="stage" tabindex="-1"></section>
     <div class="sr-only" id="live" role="status" aria-live="polite"></div>
   </main>

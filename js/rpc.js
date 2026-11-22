@@ -6,6 +6,8 @@
   "use strict";
   const K = (globalThis.Kiscan = globalThis.Kiscan || {});
   const { RpcError, PriceError } = K;
+  const locale = () => typeof K.getLocale === "function" ? K.getLocale() : "es";
+  const t = (es, en, pt) => locale() === "en" ? en : locale() === "pt" ? pt : es;
 
   const DEFILLAMA_URL = "https://coins.llama.fi/prices/historical";
   const LIFI_STATUS_URL = "https://li.quest/v1/status";
@@ -28,7 +30,7 @@
       apiKey ? String(text).split(apiKey).join("[API Key]") : String(text);
 
     async function fetchWithTimeout(url, init, label) {
-      if (!fetchFn) throw new RpcError("Este navegador no soporta fetch().", "network");
+      if (!fetchFn) throw new RpcError(t("Este navegador no soporta fetch().", "This browser does not support fetch().", "Este navegador não oferece suporte a fetch()."), "network");
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -36,12 +38,12 @@
       } catch (error) {
         if (error && error.name === "AbortError") {
           throw new RpcError(
-            `${label} no respondió en ${timeoutMs / 1000} segundos. Inténtalo de nuevo más tarde.`,
+            t(`${label} no respondió en ${timeoutMs / 1000} segundos. Inténtalo de nuevo más tarde.`, `${label} did not respond within ${timeoutMs / 1000} seconds. Try again later.`, `${label} não respondeu em ${timeoutMs / 1000} segundos. Tente novamente mais tarde.`),
             "timeout"
           );
         }
         throw new RpcError(
-          `No se pudo conectar con ${label}. Revisa tu conexión (o si un bloqueador/extensión impide la petición).`,
+          t(`No se pudo conectar con ${label}. Revisa tu conexión (o si un bloqueador/extensión impide la petición).`, `Could not connect to ${label}. Check your connection (or whether an ad blocker/extension is blocking the request).`, `Não foi possível conectar-se a ${label}. Verifique sua conexão (ou se um bloqueador/extensão está impedindo a solicitação).`),
           "network"
         );
       } finally {
@@ -52,13 +54,13 @@
     // ───────────── JSON-RPC ─────────────
     async function call(chainName, method, params) {
       if (!apiKey) {
-        throw new RpcError("Falta la API key de Alchemy. Ingrésala en «Configuración».", "no_key");
+        throw new RpcError(t("Falta la API key de Alchemy. Ingrésala en «Configuración».", "The Alchemy API key is missing. Enter it in Settings.", "Falta a chave de API da Alchemy. Informe-a em Configurações."), "no_key");
       }
       if (/\s/.test(apiKey)) {
-        throw new RpcError("La API key contiene espacios internos. Cópiala de nuevo desde Alchemy.", "no_key");
+        throw new RpcError(t("La API key contiene espacios internos. Cópiala de nuevo desde Alchemy.", "The API key contains internal spaces. Copy it again from Alchemy.", "A chave de API contém espaços internos. Copie-a novamente da Alchemy."), "no_key");
       }
       const chain = K.CHAINS[chainName];
-      if (!chain) throw new RpcError("La red seleccionada no está configurada.", "config");
+      if (!chain) throw new RpcError(t("La red seleccionada no está configurada.", "The selected network is not configured.", "A rede selecionada não está configurada."), "config");
 
       const url = `https://${chain.alchemySlug}.g.alchemy.com/v2/${encodeURIComponent(apiKey)}`;
       const body = JSON.stringify({
@@ -94,33 +96,33 @@
         const status = response.status;
         if (status === 401 || status === 403) {
           throw new RpcError(
-            `Error de autenticación con Alchemy (HTTP ${status}). Verifica que la API key sea válida, que la red esté habilitada y que el dominio esté permitido.`,
+            t(`Error de autenticación con Alchemy (HTTP ${status}). Verifica que la API key sea válida, que la red esté habilitada y que el dominio esté permitido.`, `Alchemy authentication error (HTTP ${status}). Check that the API key is valid, the network is enabled and the domain is allowed.`, `Erro de autenticação da Alchemy (HTTP ${status}). Verifique se a chave de API é válida, se a rede está habilitada e se o domínio é permitido.`),
             "auth"
           );
         }
         if (status === 404) {
           throw new RpcError(
-            "Alchemy no encontró el endpoint solicitado (HTTP 404). Revisa la red y vuelve a copiar la API key.",
+            t("Alchemy no encontró el endpoint solicitado (HTTP 404). Revisa la red y vuelve a copiar la API key.", "Alchemy could not find the requested endpoint (HTTP 404). Check the network and copy the API key again.", "A Alchemy não encontrou o endpoint solicitado (HTTP 404). Verifique a rede e copie novamente a chave de API."),
             "endpoint"
           );
         }
         if (status === 429) {
           throw new RpcError(
-            "Alchemy limitó la tasa de peticiones (HTTP 429). Espera unos segundos e inténtalo de nuevo.",
+            t("Alchemy limitó la tasa de peticiones (HTTP 429). Espera unos segundos e inténtalo de nuevo.", "Alchemy rate-limited the requests (HTTP 429). Wait a few seconds and try again.", "A Alchemy limitou a taxa de solicitações (HTTP 429). Aguarde alguns segundos e tente novamente."),
             "rate_limited"
           );
         }
-        throw new RpcError(`Alchemy respondió HTTP ${status}. Inténtalo de nuevo más tarde.`, "http");
+        throw new RpcError(t(`Alchemy respondió HTTP ${status}. Inténtalo de nuevo más tarde.`, `Alchemy returned HTTP ${status}. Try again later.`, `A Alchemy respondeu HTTP ${status}. Tente novamente mais tarde.`), "http");
       }
 
       let data;
       try {
         data = await response.json();
       } catch (error) {
-        throw new RpcError("Alchemy devolvió una respuesta que no es JSON válido.", "invalid");
+        throw new RpcError(t("Alchemy devolvió una respuesta que no es JSON válido.", "Alchemy returned a response that is not valid JSON.", "A Alchemy retornou uma resposta que não é um JSON válido."), "invalid");
       }
       if (!data || typeof data !== "object") {
-        throw new RpcError("Alchemy devolvió una respuesta inesperada.", "invalid");
+        throw new RpcError(t("Alchemy devolvió una respuesta inesperada.", "Alchemy returned an unexpected response.", "A Alchemy retornou uma resposta inesperada."), "invalid");
       }
       if (data.error) {
         const rpcError = data.error;
@@ -130,20 +132,20 @@
         }
         if (AUTH_RE.test(message)) {
           throw new RpcError(
-            "Error de autenticación con Alchemy. Verifica que la API key sea válida y que la red esté habilitada.",
+            t("Error de autenticación con Alchemy. Verifica que la API key sea válida y que la red esté habilitada.", "Alchemy authentication error. Check that the API key is valid and the network is enabled.", "Erro de autenticação da Alchemy. Verifique se a chave de API é válida e se a rede está habilitada."),
             "auth"
           );
         }
         if (NOT_FOUND_RE.test(message)) {
           throw new RpcError(
-            `Alchemy no pudo completar ${method} en ${chainName}. Revisa que la red y el acceso de tu API key sean compatibles.`,
+            t(`Alchemy no pudo completar ${method} en ${chainName}. Revisa que la red y el acceso de tu API key sean compatibles.`, `Alchemy could not complete ${method} on ${chainName}. Check that the network and your API key access are compatible.`, `A Alchemy não conseguiu concluir ${method} em ${chainName}. Verifique se a rede e o acesso da sua chave de API são compatíveis.`),
             "endpoint"
           );
         }
-        throw new RpcError(`Error JSON-RPC de Alchemy: ${maskKey(message).slice(0, 240)}`, "rpc");
+        throw new RpcError(t(`Error JSON-RPC de Alchemy: ${maskKey(message).slice(0, 240)}`, `Alchemy JSON-RPC error: ${maskKey(message).slice(0, 240)}`, `Erro JSON-RPC da Alchemy: ${maskKey(message).slice(0, 240)}`), "rpc");
       }
       if (!("result" in data)) {
-        throw new RpcError("La respuesta de Alchemy no contiene el campo result.", "invalid");
+        throw new RpcError(t("La respuesta de Alchemy no contiene el campo result.", "Alchemy's response does not contain the result field.", "A resposta da Alchemy não contém o campo result."), "invalid");
       }
       return data.result;
     }
@@ -152,14 +154,14 @@
     async function getTransaction(chain, hash) {
       const tx = await call(chain, "eth_getTransactionByHash", [hash]);
       if (tx !== null && (typeof tx !== "object" || Array.isArray(tx))) {
-        throw new RpcError("Alchemy devolvió datos de transacción inválidos.", "invalid");
+        throw new RpcError(t("Alchemy devolvió datos de transacción inválidos.", "Alchemy returned invalid transaction data.", "A Alchemy retornou dados de transação inválidos."), "invalid");
       }
       return tx;
     }
     async function getReceipt(chain, hash) {
       const receipt = await call(chain, "eth_getTransactionReceipt", [hash]);
       if (receipt !== null && (typeof receipt !== "object" || Array.isArray(receipt))) {
-        throw new RpcError("Alchemy devolvió un recibo inválido.", "invalid");
+        throw new RpcError(t("Alchemy devolvió un recibo inválido.", "Alchemy returned an invalid receipt.", "A Alchemy retornou um recibo inválido."), "invalid");
       }
       return receipt;
     }
@@ -167,7 +169,7 @@
       const transaction = await getTransaction(chain, hash);
       if (transaction === null) {
         throw new RpcError(
-          `No se encontró la transacción en ${chain}. Verifica el hash y la red; si es muy reciente, espera un momento.`,
+          t(`No se encontró la transacción en ${chain}. Verifica el hash y la red; si es muy reciente, espera un momento.`, `The transaction was not found on ${chain}. Check the hash and network; if it is very recent, wait a moment.`, `A transação não foi encontrada em ${chain}. Verifique o hash e a rede; se for muito recente, aguarde um pouco.`),
           "tx_not_found"
         );
       }
@@ -201,7 +203,7 @@
     async function getBlock(chain, tag) {
       const block = await call(chain, "eth_getBlockByNumber", [tag, false]);
       if (!block || typeof block !== "object") {
-        throw new RpcError(`Alchemy no devolvió el bloque ${tag} en ${chain}.`, "invalid");
+        throw new RpcError(t(`Alchemy no devolvió el bloque ${tag} en ${chain}.`, `Alchemy did not return block ${tag} on ${chain}.`, `A Alchemy não retornou o bloco ${tag} em ${chain}.`), "invalid");
       }
       return block;
     }
@@ -255,10 +257,10 @@
     async function assetTransfers(chain, filter) {
       const response = await call(chain, "alchemy_getAssetTransfers", [filter]);
       if (!response || typeof response !== "object") {
-        throw new RpcError(`Alchemy devolvió una respuesta inválida al buscar transferencias en ${chain}.`, "invalid");
+        throw new RpcError(t(`Alchemy devolvió una respuesta inválida al buscar transferencias en ${chain}.`, `Alchemy returned an invalid response while searching for transfers on ${chain}.`, `A Alchemy retornou uma resposta inválida ao buscar transferências em ${chain}.`), "invalid");
       }
       if (!Array.isArray(response.transfers || [])) {
-        throw new RpcError("Alchemy devolvió una lista de transferencias inválida.", "invalid");
+        throw new RpcError(t("Alchemy devolvió una lista de transferencias inválida.", "Alchemy returned an invalid transfer list.", "A Alchemy retornou uma lista de transferências inválida."), "invalid");
       }
       return response;
     }
@@ -276,13 +278,13 @@
         throw new PriceError(error.message);
       }
       if (!response.ok) {
-        throw new PriceError(`DefiLlama respondió HTTP ${response.status} al buscar un precio histórico.`);
+        throw new PriceError(t(`DefiLlama respondió HTTP ${response.status} al buscar un precio histórico.`, `DefiLlama returned HTTP ${response.status} while looking up a historical price.`, `A DefiLlama respondeu HTTP ${response.status} ao buscar um preço histórico.`));
       }
       let data;
       try {
         data = await response.json();
       } catch (error) {
-        throw new PriceError("DefiLlama devolvió una respuesta que no es JSON válido.");
+        throw new PriceError(t("DefiLlama devolvió una respuesta que no es JSON válido.", "DefiLlama returned a response that is not valid JSON.", "A DefiLlama retornou uma resposta que não é um JSON válido."));
       }
       const entry = data && data.coins ? data.coins[coinId] : null;
       const price = entry && typeof entry.price === "number" ? entry.price : null;

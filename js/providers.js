@@ -7,15 +7,38 @@
 (function () {
   "use strict";
   const K = (globalThis.Kiscan = globalThis.Kiscan || {});
+  const locale = () => typeof K.getLocale === "function" ? K.getLocale() : "es";
+  const t = (es, en, pt) => locale() === "en" ? en : locale() === "pt" ? pt : es;
 
   const FLOWS = {
-    exchange_withdrawal: { label: "Retiré fondos desde un exchange o plataforma hacia mi wallet", short: "Retiro desde exchange" },
-    exchange_deposit: { label: "Envié fondos desde mi wallet a un exchange o plataforma", short: "Depósito a exchange" },
-    wallet_transfer: { label: "Envié fondos de una wallet a otra wallet", short: "Transferencia wallet a wallet" },
-    bridge: { label: "Pasé fondos de una red a otra con un puente (bridge)", short: "Puente entre redes" },
-    swap: { label: "Cambié un token por otro (swap)", short: "Swap" },
-    onramp: { label: "Compré cripto (tarjeta, transferencia, P2P) y no la veo", short: "Compra de cripto" },
-    other: { label: "Otra operación", short: "Otra operación" },
+    exchange_withdrawal: {
+      get label() { return t("Retiré fondos desde un exchange o plataforma hacia mi wallet", "I withdrew funds from an exchange or platform to my wallet", "Saquei fundos de uma exchange ou plataforma para minha carteira"); },
+      get short() { return t("Retiro desde exchange", "Exchange withdrawal", "Saque de exchange"); },
+    },
+    exchange_deposit: {
+      get label() { return t("Envié fondos desde mi wallet a un exchange o plataforma", "I sent funds from my wallet to an exchange or platform", "Enviei fundos da minha carteira para uma exchange ou plataforma"); },
+      get short() { return t("Depósito a exchange", "Exchange deposit", "Depósito em exchange"); },
+    },
+    wallet_transfer: {
+      get label() { return t("Envié fondos de una wallet a otra wallet", "I sent funds from one wallet to another", "Enviei fundos de uma carteira para outra"); },
+      get short() { return t("Transferencia wallet a wallet", "Wallet-to-wallet transfer", "Transferência entre carteiras"); },
+    },
+    bridge: {
+      get label() { return t("Pasé fondos de una red a otra con un puente (bridge)", "I moved funds from one network to another using a bridge", "Transferi fundos de uma rede para outra usando uma ponte (bridge)"); },
+      get short() { return t("Puente entre redes", "Cross-network bridge", "Ponte entre redes"); },
+    },
+    swap: {
+      get label() { return t("Cambié un token por otro (swap)", "I swapped one token for another", "Troquei um token por outro (swap)"); },
+      short: "Swap",
+    },
+    onramp: {
+      get label() { return t("Compré cripto (tarjeta, transferencia, P2P) y no la veo", "I bought crypto (card, transfer, P2P) but cannot see it", "Comprei cripto (cartão, transferência, P2P), mas não consigo vê-la"); },
+      get short() { return t("Compra de cripto", "Crypto purchase", "Compra de cripto"); },
+    },
+    other: {
+      get label() { return t("Otra operación", "Another operation", "Outra operação"); },
+      get short() { return t("Otra operación", "Other operation", "Outra operação"); },
+    },
   };
 
   // ───────────── Redes ─────────────
@@ -69,10 +92,10 @@
     { key: "lifi", names: ["li.fi", "lifi", "jumper"], label: "LI.FI / Jumper", kind: "bridge", protocol: "LI.FI" },
     { key: "layerzero", names: ["layerzero", "layer zero"], label: "LayerZero", kind: "bridge", protocol: "LayerZero" },
     { key: "rhino", names: ["rhino"], label: "Rhino.fi", kind: "bridge", protocol: "Rhino.fi" },
-    { key: "arb_native", names: ["arbitrum bridge", "bridge.arbitrum"], label: "Puente oficial de Arbitrum", kind: "bridge", protocol: "Arbitrum Native Bridge" },
-    { key: "op_native", names: ["optimism bridge", "superbridge", "app.optimism"], label: "Puente oficial de Optimism", kind: "bridge", protocol: "Optimism Native Bridge" },
-    { key: "base_native", names: ["base bridge", "bridge.base"], label: "Puente oficial de Base", kind: "bridge", protocol: "Base Native Bridge" },
-    { key: "polygon_native", names: ["polygon bridge", "portal polygon", "polygon portal", "polygon pos"], label: "Puente oficial de Polygon", kind: "bridge", protocol: "Polygon Native Bridge" },
+    { key: "arb_native", names: ["arbitrum bridge", "bridge.arbitrum"], get label() { return t("Puente oficial de Arbitrum", "Official Arbitrum Bridge", "Ponte oficial da Arbitrum"); }, kind: "bridge", protocol: "Arbitrum Native Bridge" },
+    { key: "op_native", names: ["optimism bridge", "superbridge", "app.optimism"], get label() { return t("Puente oficial de Optimism", "Official Optimism Bridge", "Ponte oficial da Optimism"); }, kind: "bridge", protocol: "Optimism Native Bridge" },
+    { key: "base_native", names: ["base bridge", "bridge.base"], get label() { return t("Puente oficial de Base", "Official Base Bridge", "Ponte oficial da Base"); }, kind: "bridge", protocol: "Base Native Bridge" },
+    { key: "polygon_native", names: ["polygon bridge", "portal polygon", "polygon portal", "polygon pos"], get label() { return t("Puente oficial de Polygon", "Official Polygon Bridge", "Ponte oficial da Polygon"); }, kind: "bridge", protocol: "Polygon Native Bridge" },
     // DEX
     { key: "uniswap", names: ["uniswap"], label: "Uniswap", kind: "dex", protocol: "Uniswap" },
     { key: "quickswap", names: ["quickswap"], label: "QuickSwap", kind: "dex", protocol: "QuickSwap" },
@@ -114,11 +137,40 @@
   // ───────────── Perfiles de tiempo (orientativos) ─────────────
   const MIN = 1, HOUR = 60, DAY = 24 * 60;
   const L2 = ["Optimism", "Base", "Arbitrum"];
+  function localizeTiming(profile) {
+    if (locale() === "es") return profile;
+    const messages = {
+      native_l2_to_l1: [ "Withdrawal through an official L2-to-Ethereum bridge", "About 7 days for the dispute window, followed by a final claim transaction on Ethereum", "Saque por uma ponte oficial de L2 para Ethereum", "Cerca de 7 dias para o período de contestação, seguidos de uma transação final de resgate na Ethereum" ],
+      native_l1_to_l2: [ "Deposit through the official Ethereum-to-L2 bridge", "Usually a few minutes to about 20 minutes", "Depósito pela ponte oficial de Ethereum para L2", "Normalmente de alguns minutos a cerca de 20 minutos" ],
+      polygon_withdraw: [ "Withdrawal through the official Polygon-to-Ethereum bridge", "Several hours until the checkpoint, followed by a manual claim on Ethereum", "Saque pela ponte oficial da Polygon para Ethereum", "Várias horas até o checkpoint, seguidas de um resgate manual na Ethereum" ],
+      polygon_deposit: [ "Deposit through the official Ethereum-to-Polygon bridge", "Usually about 20 to 30 minutes", "Depósito pela ponte oficial de Ethereum para Polygon", "Normalmente cerca de 20 a 30 minutos" ],
+      swap: [ "Swap on a DEX", "Immediate: if the transaction succeeded, the token is already in the wallet", "Swap em uma DEX", "Imediato: se a transação foi concluída, o token já está na carteira" ],
+      exchange_withdrawal: [ "Exchange withdrawal", "A few minutes to several hours; security reviews may cause delays", "Saque de exchange", "De alguns minutos a várias horas; verificações de segurança podem causar atrasos" ],
+      exchange_deposit: [ "Exchange deposit", "Credited after the confirmations required by the exchange for that network", "Depósito em exchange", "Creditado após as confirmações exigidas pela exchange nessa rede" ],
+      wallet_transfer: [ "Wallet-to-wallet transfer", "Appears as soon as the transaction is confirmed (seconds to a few minutes)", "Transferência entre carteiras", "Aparece assim que a transação é confirmada (de segundos a alguns minutos)" ],
+      onramp: [ "Crypto purchase", "Depends on the payment method and provider", "Compra de cripto", "Depende do meio de pagamento e do provedor" ],
+      unknown: [ "Operation", "No time reference is available for this type of operation", "Operação", "Não há referência de tempo para esse tipo de operação" ],
+    };
+    const translation = messages[profile.id];
+    if (!translation && profile.id !== "bridge_standard" && profile.id !== "bridge_fast") return profile;
+    if (!translation) {
+      return {
+        ...profile,
+        label: profile.label === "Puente entre redes"
+          ? locale() === "en" ? "Cross-network bridge" : "Ponte entre redes"
+          : locale() === "en" ? profile.label.replace(/^Puente/, "Bridge") : profile.label.replace(/^Puente/, "Ponte"),
+        expected: profile.id === "bridge_standard"
+          ? locale() === "en" ? "A few minutes to about one or two hours, depending on the route" : "De alguns minutos a cerca de uma ou duas horas, dependendo da rota"
+          : locale() === "en" ? "Usually seconds to a few minutes" : "Normalmente de segundos a alguns minutos",
+      };
+    }
+    return { ...profile, label: locale() === "en" ? translation[0] : translation[2], expected: locale() === "en" ? translation[1] : translation[3] };
+  }
 
   /**
    * @returns {{id, label, expected, thresholdMinutes|null, note, concepts:string[]}}
    */
-  function timingProfile(ctx) {
+  function timingProfileBase(ctx) {
     const { flow, protocol, src, dst } = ctx;
     const native = protocol && /Native Bridge$/.test(protocol);
     if (native) {
@@ -161,6 +213,9 @@
       return { id: "onramp", label: "Compra de cripto", expected: "depende del medio de pago y del proveedor", thresholdMinutes: null, concepts: ["custodia"] };
     }
     return { id: "unknown", label: "Operación", expected: "sin referencia de tiempo para este tipo de operación", thresholdMinutes: null, concepts: [] };
+  }
+  function timingProfile(ctx) {
+    return localizeTiming(timingProfileBase(ctx));
   }
 
   Object.assign(K, { FLOWS, NON_EVM_NETWORKS, networkKind, networkOptions, addressMatchesNetwork, findProvider, timingProfile });

@@ -11,14 +11,22 @@
   const EXCHANGE_FLOWS = ["exchange_withdrawal", "exchange_deposit"];
   const NON_SWAP = (a) => a.flow !== "swap";
   const locale = () => (typeof K.getLocale === "function" ? K.getLocale() : "es");
+  const translate = (key, fallback) => (typeof K.t === "function" ? K.t(key) : fallback);
 
   const YES_NO_UNSURE = [
-    { value: "yes", label: "Sí" },
-    { value: "no", label: "No" },
-    { value: UNKNOWN, label: "No lo sé" },
+    { value: "yes", label: translate("yes", "Sí") },
+    { value: "no", label: translate("no", "No") },
+    { value: UNKNOWN, label: translate("dontKnow", "No lo sé") },
   ];
 
   function srcPrompt(a) {
+    if (typeof K.t === "function") {
+      if (a.flow === "exchange_withdrawal") return translate("sourceWithdrawal", "¿Qué red elegiste en el formulario de retiro?");
+      if (a.flow === "exchange_deposit" || a.flow === "wallet_transfer") return translate("sourceSent", "¿Por qué red enviaste los fondos desde tu wallet?");
+      if (a.flow === "bridge") return translate("sourceBridge", "¿En qué red estaban tus fondos antes de la operación (red de origen)?");
+      if (a.flow === "swap") return translate("sourceSwap", "¿En qué red hiciste el intercambio?");
+      return translate("sourceDefault", "¿Por qué red se enviaron los fondos?");
+    }
     if (locale() === "en") {
       if (a.flow === "exchange_withdrawal") return "Which network did you select in the withdrawal form?";
       if (a.flow === "exchange_deposit" || a.flow === "wallet_transfer") return "Which network did you use to send funds from your wallet?";
@@ -48,6 +56,13 @@
     }
   }
   function dstPrompt(a) {
+    if (typeof K.t === "function") {
+      if (a.flow === "exchange_withdrawal") return translate("destinationWithdrawal", "¿En qué red esperabas recibir los fondos en tu wallet?");
+      if (a.flow === "exchange_deposit") return translate("destinationDeposit", "¿Qué red indicaba la plataforma para depositar?");
+      if (a.flow === "bridge") return translate("destinationBridge", "¿A qué red querías llevar los fondos (red de destino)?");
+      if (a.flow === "onramp") return translate("destinationOnramp", "¿En qué red debía llegar la cripto que compraste?");
+      return translate("destinationDefault", "¿En qué red esperabas que llegaran los fondos?");
+    }
     if (locale() === "en") {
       if (a.flow === "exchange_withdrawal") return "Which network did you expect to receive the funds on in your wallet?";
       if (a.flow === "exchange_deposit") return "Which network did the platform specify for the deposit?";
@@ -76,6 +91,11 @@
     }
   }
   function addressPrompt(a) {
+    if (typeof K.t === "function") {
+      if (a.flow === "exchange_deposit") return translate("questionAddressDeposit", "¿Cuál es la dirección de depósito que usaste? Pégala exactamente como la copiaste.");
+      if (a.flow === "swap") return translate("questionAddressSwap", "¿Cuál es la dirección de tu wallet con la que operaste?");
+      return translate("questionAddressDefault", "¿Cuál es la dirección donde esperabas recibir los fondos? Pégala exactamente como la usaste.");
+    }
     if (a.flow === "exchange_deposit") return "¿Cuál es la dirección de depósito que usaste? Pégala exactamente como la copiaste.";
     if (a.flow === "swap") return "¿Cuál es la dirección de tu wallet con la que operaste?";
     return "¿Cuál es la dirección donde esperabas recibir los fondos? Pégala exactamente como la usaste.";
@@ -301,6 +321,70 @@
     },
   ];
 
+  const QUESTION_COPY = {
+    flow: { prompt: "questionFlowPrompt", help: "questionFlowHelp", options: { exchange_withdrawal: "optionWithdrawal", exchange_deposit: "optionDeposit", wallet_transfer: "optionWalletTransfer", bridge: "optionBridge", swap: "optionSwap", onramp: "optionOnramp", other: "optionOther" } },
+    provider: { help: "questionProviderHelp", placeholder: "questionProviderPlaceholder" },
+    symptom: { prompt: "questionSymptomPrompt", help: "questionSymptomHelp", options: { not_arrived: "symptomNotArrived", not_visible: "symptomNotVisible", cannot_use: "symptomCannotUse", pending_status: "symptomPending", failed_status: "symptomFailed", less_amount: "symptomLess" } },
+    elapsed: { prompt: "questionElapsedPrompt", help: "questionElapsedHelp", options: { lt1h: "timeLt1h", "1_24h": "time1to24h", "1_7d": "time1to7d", gt7d: "timeGt7d" } },
+    asset: { prompt: "questionAssetPrompt", help: "questionAssetHelp", options: { OTHER: "other", POL: "optionPOL" } },
+    asset_other: { prompt: "questionOtherAssetPrompt", help: "questionOtherAssetHelp", placeholder: "tokenPlaceholder" },
+    amount: { prompt: "questionAmountPrompt", help: "questionAmountHelp", placeholder: "amountPlaceholder" },
+    src_network: { help: "questionSrcHelp" },
+    dst_network: { help: "questionDstHelp" },
+    dst_address: { help: "questionAddressHelp", placeholder: "questionAddressPlaceholder" },
+    addr_source: { prompt: "questionAddressSourcePrompt", help: "questionAddressSourceHelp", options: { provider_page: "optionProviderPage", own_wallet: "optionOwnWallet", history: "optionHistory", typed: "optionTyped", third_party: "optionThirdParty" } },
+    third_party: { prompt: "questionThirdPartyPrompt", help: "questionThirdPartyHelp", options: { no: "optionNoSelf", yes: "optionYesDirected" } },
+    memo: { prompt: "questionMemoPrompt", help: "questionMemoHelp", options: { required_included: "optionRequiredIncluded", required_missing: "optionRequiredMissing", not_required: "optionNotRequired", unknown: "dontKnow" } },
+    provider_status: { prompt: "questionProviderStatusPrompt", help: "questionProviderStatusHelp", options: { completed_sent: "statusCompletedSent", processing: "statusProcessing", review: "statusReview", rejected: "statusRejected", no_info: "statusNoInfo" } },
+    viewing_network: { prompt: "questionViewingNetworkPrompt", help: "questionViewingNetworkHelp" },
+    tx_hash: { help: "questionTxHashHelp", placeholder: "questionTxHashPlaceholder" },
+  };
+  for (const q of QUESTIONS) {
+    const copy = QUESTION_COPY[q.id];
+    if (!copy) continue;
+    if (copy.prompt) {
+      const sourcePrompt = q.prompt;
+      q.prompt = (answers) => translate(copy.prompt, sourcePrompt(answers));
+    } else if (q.id === "provider") {
+      const sourcePrompt = q.prompt;
+      q.prompt = (answers) => {
+        const key = answers.flow === "bridge" ? "questionProviderBridge"
+          : answers.flow === "swap" ? "questionProviderSwap"
+          : answers.flow === "wallet_transfer" ? "questionProviderWallet" : "questionProviderOther";
+        return translate(key, sourcePrompt(answers));
+      };
+    } else if (q.id === "src_network") {
+      q.prompt = srcPrompt;
+    } else if (q.id === "dst_network") {
+      q.prompt = dstPrompt;
+    } else if (q.id === "dst_address") {
+      q.prompt = addressPrompt;
+    } else if (q.id === "tx_hash") {
+      q.prompt = (answers) => translate(
+        answers.flow === "exchange_deposit" ? "questionTxHashDeposit" : "questionTxHashDefault",
+        answers.flow === "exchange_deposit" ? "¿Tienes el hash (TxID) del envío? Pégalo o pega el enlace del explorador." : "¿Tienes el hash (TxID) de la transacción? Pégalo o pega el enlace del explorador."
+      );
+    }
+    if (copy.help) {
+      const originalHelp = q.help;
+      q.help = (answers) => translate(copy.help, originalHelp(answers));
+    }
+    if (copy.placeholder) {
+      const originalPlaceholder = q.placeholder;
+      Object.defineProperty(q, "placeholder", {
+        configurable: true,
+        get: () => translate(copy.placeholder, originalPlaceholder),
+      });
+    }
+    if (copy.options) {
+      const originalOptions = q.options;
+      q.options = (answers) => originalOptions(answers).map((option) => {
+        const key = copy.options[option.value];
+        return key ? { ...option, label: translate(key, option.label) } : option;
+      });
+    }
+  }
+
   const BY_ID = Object.fromEntries(QUESTIONS.map((q) => [q.id, q]));
   const applies = (q, answers) => (q.applies ? q.applies(answers) : true);
 
@@ -358,24 +442,24 @@
    */
   function validateAnswer(id, raw, answers) {
     const q = BY_ID[id];
-    if (!q) return { ok: false, error: "Pregunta desconocida." };
+    if (!q) return { ok: false, error: translate("errUnknownQuestion", "Pregunta desconocida.") };
     const ctx = answers || {};
     if (raw === SKIP) {
-      return q.optional ? { ok: true, value: null } : { ok: false, error: "Esta pregunta es necesaria para poder evaluar la operación." };
+      return q.optional ? { ok: true, value: null } : { ok: false, error: translate("errRequiredQuestion", "Esta pregunta es necesaria para poder evaluar la operación.") };
     }
     switch (q.type) {
       case "choice": {
         const option = q.options(ctx).find((o) => o.value === raw || o.label === raw);
-        return option ? { ok: true, value: option.value } : { ok: false, error: "Elige una de las opciones." };
+        return option ? { ok: true, value: option.value } : { ok: false, error: translate("errChooseOption", "Elige una de las opciones.") };
       }
       case "text": {
         const text = String(raw == null ? "" : raw).trim().replace(/\s+/g, " ");
-        if (!text) return q.optional ? { ok: true, value: null } : { ok: false, error: "Escribe una respuesta." };
+        if (!text) return q.optional ? { ok: true, value: null } : { ok: false, error: translate("errWriteAnswer", "Escribe una respuesta.") };
         return { ok: true, value: text.slice(0, 80) };
       }
       case "number": {
         const n = parseAmount(raw);
-        return n ? { ok: true, value: n } : { ok: false, error: "Escribe un monto válido, por ejemplo 250 o 0,5." };
+        return n ? { ok: true, value: n } : { ok: false, error: translate("errAmount", "Escribe un monto válido, por ejemplo 250 o 0,5.") };
       }
       case "address": {
         const text = String(raw == null ? "" : raw).trim();
@@ -394,10 +478,10 @@
         if (cls.kind === "evm_tx" || cls.kind === "explorer_url" || cls.kind === "hash_without_prefix") {
           return { ok: true, value: cls.hash, note: note || undefined, extra: { tx_chain_hint: cls.chain || null } };
         }
-        return { ok: false, error: note ? `${note.title}. ${note.detail}` : "Hash no válido.", note };
+        return { ok: false, error: note ? `${note.title}. ${note.detail}` : translate("errHash", "Hash no válido."), note };
       }
       default:
-        return { ok: false, error: "Tipo de pregunta no soportado." };
+        return { ok: false, error: translate("errUnsupportedQuestion", "Tipo de pregunta no soportado.") };
     }
   }
 
@@ -417,7 +501,7 @@
       const value = answers[q.id];
       if (value === undefined) continue;
       let shown;
-      if (value === null) shown = "No indicado";
+      if (value === null) shown = translate("noAnswer", "No indicado");
       else if (q.type === "choice") {
         const o = q.options(answers).find((x) => x.value === value);
         shown = o ? o.label : String(value);

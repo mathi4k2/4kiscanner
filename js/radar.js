@@ -8,6 +8,8 @@
   "use strict";
   const K = (globalThis.Kiscan = globalThis.Kiscan || {});
   const { RpcError, PriceError } = K;
+  const locale = () => typeof K.getLocale === "function" ? K.getLocale() : "es";
+  const translate = (es, en, pt) => locale() === "en" ? en : locale() === "pt" ? pt : es;
 
   const RADAR_WINDOWS = [
     ["1 min", 60],
@@ -35,17 +37,17 @@
     const fallback = K.CHAINS[chain].averageBlockTime;
     const sampleCount = Math.max(1, Math.floor(RADAR_WINDOWS[RADAR_WINDOWS.length - 1][1] / fallback));
     const sampleNumber = Math.max(0, latestNumber - sampleCount);
-    if (sampleNumber === latestNumber) return { seconds: fallback, source: "estimación de referencia de la red" };
+    if (sampleNumber === latestNumber) return { seconds: fallback, source: translate("estimación de referencia de la red", "network reference estimate", "estimativa de referência da rede") };
     let sampleTimestamp;
     try {
       sampleTimestamp = await api.blockTimestamp(chain, sampleNumber);
     } catch (error) {
-      return { seconds: fallback, source: "estimación de referencia (no se pudo leer un bloque histórico)" };
+      return { seconds: fallback, source: translate("estimación de referencia (no se pudo leer un bloque histórico)", "reference estimate (could not read a historical block)", "estimativa de referência (não foi possível ler um bloco histórico)") };
     }
     const blocks = latestNumber - sampleNumber;
     const seconds = latestTimestamp - sampleTimestamp;
-    if (blocks <= 0 || seconds <= 0) return { seconds: fallback, source: "estimación de referencia (muestra de bloques inválida)" };
-    return { seconds: seconds / blocks, source: "promedio observado en las últimas ~48 horas" };
+    if (blocks <= 0 || seconds <= 0) return { seconds: fallback, source: translate("estimación de referencia (muestra de bloques inválida)", "reference estimate (invalid block sample)", "estimativa de referência (amostra de blocos inválida)") };
+    return { seconds: seconds / blocks, source: translate("promedio observado en las últimas ~48 horas", "average observed over the last ~48 hours", "média observada nas últimas ~48 horas") };
   }
 
   function approximateBlockForTimestamp(target, latestNumber, latestTimestamp, avgBlockTime) {
@@ -160,7 +162,7 @@
         destinationAmount: K.formatUnits(destAsset.amountRaw, destAsset.decimals),
         feePercent,
         assetId: origin.assetId,
-        symbol: shared.length ? shared.sort()[0] : origin.symbol || "Activo",
+        symbol: shared.length ? shared.sort()[0] : origin.symbol || translate("Activo", "Asset", "Ativo"),
       };
     }
     return null;
@@ -205,8 +207,8 @@
           continue;
         }
         if (cmp.efficiencyPercent < SWAP_MIN_PERCENT || cmp.efficiencyPercent > SWAP_MAX_PERCENT) continue;
-        const originSymbol = String(origin.symbol || "Activo desconocido");
-        const destSymbol = String(destAsset.symbol || "Activo desconocido");
+        const originSymbol = String(origin.symbol || translate("Activo desconocido", "Unknown asset", "Ativo desconhecido"));
+        const destSymbol = String(destAsset.symbol || translate("Activo desconocido", "Unknown asset", "Ativo desconhecido"));
         return {
           ...candidate,
           matchType: "swap",
@@ -224,7 +226,7 @@
         };
       }
     }
-    if (priceUnavailable) throw new PriceError("DefiLlama no devolvió un precio histórico en USD para uno o más activos candidatos.");
+    if (priceUnavailable) throw new PriceError(translate("DefiLlama no devolvió un precio histórico en USD para uno o más activos candidatos.", "DefiLlama did not return a historical USD price for one or more candidate assets.", "A DefiLlama não retornou um preço histórico em USD para um ou mais ativos candidatos."));
     return null;
   }
 
@@ -328,7 +330,7 @@
             hash: transfer.hash || null,
             from: transfer.from || null,
             to: recipient,
-            asset: destAsset ? destAsset.symbol : transfer.asset || "Activo sin identificar",
+            asset: destAsset ? destAsset.symbol : transfer.asset || translate("Activo sin identificar", "Unidentified asset", "Ativo não identificado"),
             value: destAsset ? destAsset.amount : transfer.value,
             category: transfer.category,
             blockNumber: transfer.blockNum,
@@ -510,7 +512,7 @@
   async function verifyDestinationBridgeReference(api, opts) {
     const { destChain, destinationTxHash, originTxHash, originSender } = opts;
     if (typeof destinationTxHash !== "string" || !K.TX_HASH_RE.test(destinationTxHash)) {
-      return { status: "Not checked", detail: "La transferencia de destino no incluyó un hash de transacción válido." };
+      return { status: "Not checked", detail: translate("La transferencia de destino no incluyó un hash de transacción válido.", "The destination transfer did not include a valid transaction hash.", "A transferência de destino não incluiu um hash de transação válido.") };
     }
     let transaction, receipt;
     try {
@@ -519,7 +521,7 @@
       if (!(error instanceof RpcError)) throw error;
       return { status: "Lookup failed", detail: error.message };
     }
-    if (!receipt) return { status: "Receipt unavailable", detail: "La transacción de destino todavía no tiene recibo." };
+    if (!receipt) return { status: "Receipt unavailable", detail: translate("La transacción de destino todavía no tiene recibo.", "The destination transaction does not have a receipt yet.", "A transação de destino ainda não tem recibo.") };
 
     const logs = Array.isArray(receipt.logs) ? receipt.logs.filter((l) => l && typeof l === "object") : [];
     const input = transaction.input || "";
@@ -555,16 +557,16 @@
     let status, detail;
     if (verified) {
       status = "Verified Bridge Reference";
-      detail = "El hash o el remitente de origen aparece en la llamada a un puente/router del catálogo o en un log emitido por uno.";
+      detail = translate("El hash o el remitente de origen aparece en la llamada a un puente/router del catálogo o en un log emitido por uno.", "The source hash or sender appears in a call to a catalogued bridge/router or in a log emitted by one.", "O hash ou remetente de origem aparece em uma chamada para uma ponte/roteador do catálogo ou em um log emitido por ela.");
     } else if (hashInInput || hashInLogs) {
       status = "Origin transaction hash referenced";
-      detail = "El hash de origen aparece en la llamada o en los logs de destino, pero no se verificó una referencia vinculante de un puente/router del catálogo.";
+      detail = translate("El hash de origen aparece en la llamada o en los logs de destino, pero no se verificó una referencia vinculante de un puente/router del catálogo.", "The source hash appears in the destination call or logs, but no binding reference to a catalogued bridge/router was verified.", "O hash de origem aparece na chamada ou nos logs de destino, mas não foi verificada uma referência vinculante a uma ponte/roteador do catálogo.");
     } else if (senderInInput || senderInLogs) {
       status = "Sender wallet referenced (unverified)";
-      detail = "La dirección remitente de origen aparece en la llamada o en los logs de destino; por sí sola no demuestra un vínculo de puente.";
+      detail = translate("La dirección remitente de origen aparece en la llamada o en los logs de destino; por sí sola no demuestra un vínculo de puente.", "The source sender address appears in the destination call or logs; by itself, this does not prove a bridge link.", "O endereço remetente de origem aparece na chamada ou nos logs de destino; isso, por si só, não comprova uma ligação pela ponte.");
     } else {
       status = "No explicit origin reference found";
-      detail = "No se encontró el hash de origen ni al remitente de origen en la llamada o los logs de la transacción de destino.";
+      detail = translate("No se encontró el hash de origen ni al remitente de origen en la llamada o los logs de la transacción de destino.", "The source hash and sender were not found in the destination transaction call or logs.", "O hash e o remetente de origem não foram encontrados na chamada ou nos logs da transação de destino.");
     }
     return {
       status,
@@ -589,39 +591,39 @@
     if (!transfer) {
       const symbols = [...new Set((result.originAssets || []).map((a) => String(a.symbol || a.assetId || "Activo desconocido")))];
       return {
-        category: "Operación no confirmada",
+        category: translate("Operación no confirmada", "Unconfirmed operation", "Operação não confirmada"),
         operationType: "Unconfirmed",
         networkRoute: `${sourceChain} → ${destChain}`,
-        assetFlow: `${symbols.join(", ") || "Activo desconocido"} → activo de destino sin confirmar`,
-        verificationMethod: "Sin transferencia de destino que cumpla los criterios",
-        verdict: "Operación de destino no confirmada",
+        assetFlow: `${symbols.join(", ") || translate("Activo desconocido", "Unknown asset", "Ativo desconhecido")} → ${translate("activo de destino sin confirmar", "unconfirmed destination asset", "ativo de destino não confirmado")}`,
+        verificationMethod: translate("Sin transferencia de destino que cumpla los criterios", "No destination transfer meets the criteria", "Nenhuma transferência de destino atende aos critérios"),
+        verdict: translate("Operación de destino no confirmada", "Destination operation unconfirmed", "Operação de destino não confirmada"),
       };
     }
     const matchType = (radar && radar.matchType) || transfer.matchType || "same_token";
     const verifiedRef = radar && radar.referenceCheck && radar.referenceCheck.status === "Verified Bridge Reference";
     let category, operationType, verificationMethod;
     if (matchType === "swap") {
-      category = same ? "Swap en la misma red" : "Swap entre redes";
+      category = same ? translate("Swap en la misma red", "Same-network swap", "Swap na mesma rede") : translate("Swap entre redes", "Cross-network swap", "Swap entre redes");
       operationType = same ? "Swap" : "Cross-Chain Swap";
-      verificationMethod = "Equivalente en USD histórico (DefiLlama)";
+      verificationMethod = translate("Equivalente en USD histórico (DefiLlama)", "Historical USD value equivalent (DefiLlama)", "Equivalente em USD histórico (DefiLlama)");
     } else {
-      category = same ? "Transferencia en la misma red" : "Puente entre redes";
+      category = same ? translate("Transferencia en la misma red", "Same-network transfer", "Transferência na mesma rede") : translate("Puente entre redes", "Cross-network bridge", "Ponte entre redes");
       operationType = same ? "Transfer" : "Bridge";
       verificationMethod = verifiedRef
-        ? "Firma de router de puente"
-        : "Coincidencia directa de logs (transferencia indexada: wallet, activo y monto)";
+        ? translate("Firma de router de puente", "Bridge router signature", "Assinatura do roteador da ponte")
+        : translate("Coincidencia directa de logs (transferencia indexada: wallet, activo y monto)", "Direct log match (indexed transfer: wallet, asset and amount)", "Correspondência direta de logs (transferência indexada: carteira, ativo e valor)");
     }
     const oa = transfer.matchedOriginAsset;
     const da = transfer.destinationAsset;
-    const originSymbol = transfer.originSymbol || (oa && oa.symbol) || transfer.matchedAsset || "Activo desconocido";
-    const destSymbol = transfer.destinationSymbol || (da && da.symbol) || transfer.matchedAsset || "Activo desconocido";
+    const originSymbol = transfer.originSymbol || (oa && oa.symbol) || transfer.matchedAsset || translate("Activo desconocido", "Unknown asset", "Ativo desconhecido");
+    const destSymbol = transfer.destinationSymbol || (da && da.symbol) || transfer.matchedAsset || translate("Activo desconocido", "Unknown asset", "Ativo desconhecido");
     return {
       category,
       operationType,
       networkRoute: `${sourceChain} → ${destChain}`,
       assetFlow: `${transfer.originAmount} ${originSymbol} → ${transfer.destinationAmount} ${destSymbol}`,
       verificationMethod,
-      verdict: `${category} confirmada`,
+      verdict: `${category} ${translate("confirmada", "confirmed", "confirmada")}`,
     };
   }
 
@@ -662,7 +664,7 @@
             subject.destinationValueUsd = cmp.destinationUsd.toFixed(2);
             subject.efficiencyPercent = cmp.efficiencyPercent.toFixed(2);
           } else if (!radar.priceError) {
-            radar.priceError = "DefiLlama no devolvió un precio histórico para el activo de origen o de destino.";
+            radar.priceError = translate("DefiLlama no devolvió un precio histórico para el activo de origen o de destino.", "DefiLlama did not return a historical price for the source or destination asset.", "A DefiLlama não retornou um preço histórico para o ativo de origem ou de destino.");
           }
         } catch (error) {
           if (!(error instanceof PriceError)) throw error;
@@ -686,12 +688,12 @@
       if (radar.fallbackMatch) {
         D.color = "yellow";
         D.indicator = "🟡";
-        D.title = "Coincidencia en otra red (búsqueda de respaldo)";
+        D.title = translate("Coincidencia en otra red (búsqueda de respaldo)", "Match on another network (fallback search)", "Correspondência em outra rede (busca de fallback)");
         D.statusCode = "CROSS_NETWORK_FALLBACK_MATCH";
         D.notes =
           radar.primaryState === "error"
-            ? `La búsqueda en ${wanted} no pudo completarse, pero se detectó una transferencia compatible hacia la wallet en ${matchedChain}.`
-            : `No se encontró la liquidación en ${wanted}, pero se detectó una transferencia compatible hacia la wallet en ${matchedChain}.`;
+            ? translate(`La búsqueda en ${wanted} no pudo completarse, pero se detectó una transferencia compatible hacia la wallet en ${matchedChain}.`, `The search on ${wanted} could not be completed, but a compatible transfer to the wallet was detected on ${matchedChain}.`, `Não foi possível concluir a busca em ${wanted}, mas foi detectada uma transferência compatível para a carteira em ${matchedChain}.`)
+            : translate(`No se encontró la liquidación en ${wanted}, pero se detectó una transferencia compatible hacia la wallet en ${matchedChain}.`, `No settlement was found on ${wanted}, but a compatible transfer to the wallet was detected on ${matchedChain}.`, `Não foi encontrado o crédito em ${wanted}, mas foi detectada uma transferência compatível para a carteira em ${matchedChain}.`);
       } else {
         D.color = "green";
         D.indicator = "🟢";
@@ -699,29 +701,29 @@
         D.statusCode = STATUS_BY_TYPE[classification.operationType] || "CROSS_CHAIN_SWAP_CONFIRMED";
         D.notes =
           radar.matchType === "swap"
-            ? `Transferencia de otro token compatible por valor USD histórico: US$${t.destinationValueUsd} recibidos frente a US$${t.originValueUsd} enviados (${t.efficiencyPercent} % de eficiencia).`
-            : `El radar encontró una transferencia entrante compatible hacia la wallet en ${matchedChain}: ${t.destinationAmount} ${t.matchedAsset} recibidos de ${t.originAmount} enviados en el origen. Variación estimada: ${t.feePercent} %.`;
+            ? translate(`Transferencia de otro token compatible por valor USD histórico: US$${t.destinationValueUsd} recibidos frente a US$${t.originValueUsd} enviados (${t.efficiencyPercent} % de eficiencia).`, `Compatible transfer in another token by historical USD value: US$${t.destinationValueUsd} received versus US$${t.originValueUsd} sent (${t.efficiencyPercent}% efficiency).`, `Transferência compatível em outro token pelo valor histórico em USD: US$${t.destinationValueUsd} recebidos contra US$${t.originValueUsd} enviados (${t.efficiencyPercent}% de eficiência).`)
+            : translate(`El radar encontró una transferencia entrante compatible hacia la wallet en ${matchedChain}: ${t.destinationAmount} ${t.matchedAsset} recibidos de ${t.originAmount} enviados en el origen. Variación estimada: ${t.feePercent} %.`, `The radar found a compatible incoming transfer to the wallet on ${matchedChain}: ${t.destinationAmount} ${t.matchedAsset} received from ${t.originAmount} sent at the source. Estimated difference: ${t.feePercent}%.`, `O radar encontrou uma transferência de entrada compatível para a carteira em ${matchedChain}: ${t.destinationAmount} ${t.matchedAsset} recebidos dos ${t.originAmount} enviados na origem. Diferença estimada: ${t.feePercent}%.`);
       }
     } else if (radar.state === "no_match_global") {
       D.color = "red";
       D.indicator = "🔴";
-      D.title = "Sin coincidencia en ninguna red";
+      D.title = translate("Sin coincidencia en ninguna red", "No match on any network", "Nenhuma correspondência em qualquer rede");
       D.statusCode = "NO_MATCH_GLOBAL";
       D.notes =
-        "La wallet no recibió fondos compatibles en la red elegida ni en las demás redes soportadas dentro de las ventanas de tiempo revisadas." +
-        (radar.candidates.length ? ` Se observaron ${radar.candidates.length} transferencia(s) entrante(s) que no cumplen el criterio de activo y monto; quedan listadas como referencia.` : "");
+        translate("La wallet no recibió fondos compatibles en la red elegida ni en las demás redes soportadas dentro de las ventanas de tiempo revisadas.", "The wallet received no compatible funds on the selected network or other supported networks within the time windows checked.", "A carteira não recebeu fundos compatíveis na rede escolhida nem nas demais redes compatíveis dentro das janelas de tempo verificadas.") +
+        (radar.candidates.length ? translate(` Se observaron ${radar.candidates.length} transferencia(s) entrante(s) que no cumplen el criterio de activo y monto; quedan listadas como referencia.`, ` ${radar.candidates.length} incoming transfer(s) that do not meet the asset and amount criteria were observed; they are listed for reference.`, ` Foram observadas ${radar.candidates.length} transferência(s) de entrada que não atendem aos critérios de ativo e valor; elas estão listadas como referência.`) : "");
     } else if (radar.state === "fallback_incomplete") {
       D.color = "yellow";
       D.indicator = "🟡";
-      D.title = "Búsqueda global incompleta";
+      D.title = translate("Búsqueda global incompleta", "Global search incomplete", "Busca global incompleta");
       D.statusCode = "GLOBAL_SEARCH_INCOMPLETE";
-      D.notes = "No se confirmó ninguna coincidencia, pero la búsqueda no pudo completarse en todas las redes soportadas.";
+      D.notes = translate("No se confirmó ninguna coincidencia, pero la búsqueda no pudo completarse en todas las redes soportadas.", "No match was confirmed, but the search could not be completed on all supported networks.", "Nenhuma correspondência foi confirmada, mas não foi possível concluir a busca em todas as redes compatíveis.");
     } else if ((radar.state === "candidates" || radar.state === "incomplete") && radar.candidates.length) {
       D.color = "yellow";
       D.indicator = "🟡";
-      D.title = `Origen exitoso; hay entradas ${wanted === D.chain ? "en la misma red" : "en otra red"} sin coincidencia verificada de activo/monto`;
+      D.title = translate(`Origen exitoso; hay entradas ${wanted === D.chain ? "en la misma red" : "en otra red"} sin coincidencia verificada de activo/monto`, `Source succeeded; incoming transfers ${wanted === D.chain ? "on the same network" : "on another network"} have no verified asset/amount match`, `A origem foi concluída; há entradas ${wanted === D.chain ? "na mesma rede" : "em outra rede"} sem correspondência verificada de ativo/valor`);
       D.statusCode = "DESTINATION_CANDIDATES_UNVERIFIED";
-      D.notes = "Se encontraron transferencias entrantes a la wallet, pero ninguna cumple el rango de monto del mismo token ni el rango de valor USD de otro token. La operación no está confirmada.";
+      D.notes = translate("Se encontraron transferencias entrantes a la wallet, pero ninguna cumple el rango de monto del mismo token ni el rango de valor USD de otro token. La operación no está confirmada.", "Incoming transfers to the wallet were found, but none meet the amount range for the same token or the USD value range for another token. The operation is unconfirmed.", "Foram encontradas transferências de entrada para a carteira, mas nenhuma atende à faixa de valor do mesmo token nem à faixa de valor em USD de outro token. A operação não está confirmada.");
     }
     return { diagnosis: D, radar, skipped: null };
   }

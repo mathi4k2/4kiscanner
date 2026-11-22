@@ -6,6 +6,8 @@
 (function () {
   "use strict";
   const K = (globalThis.Kiscan = globalThis.Kiscan || {});
+  const locale = () => typeof K.getLocale === "function" ? K.getLocale() : "es";
+  const t = (es, en, pt) => locale() === "en" ? en : locale() === "pt" ? pt : es;
 
   // ───────────── Errores ─────────────
   class RpcError extends Error {
@@ -35,7 +37,7 @@
   function hexToBigInt(value, field) {
     if (typeof value !== "string" || !/^0x[0-9a-fA-F]+$/.test(value)) {
       throw new RpcError(
-        `El campo ${field || "valor"} tiene un formato hexadecimal inválido.`,
+        t(`El campo ${field || "valor"} tiene un formato hexadecimal inválido.`, `The ${field || "value"} field has an invalid hexadecimal format.`, `O campo ${field || "valor"} tem um formato hexadecimal inválido.`),
         "invalid"
       );
     }
@@ -64,7 +66,7 @@
 
   /** BigInt escalado → texto decimal sin ceros sobrantes. */
   function formatUnits(raw, decimals) {
-    if (decimals === null || decimals === undefined) return `${raw} unidades base`;
+    if (decimals === null || decimals === undefined) return `${raw} ${t("unidades base", "base units", "unidades base")}`;
     const negative = raw < 0n;
     const v = negative ? -raw : raw;
     const base = 10n ** BigInt(decimals);
@@ -255,14 +257,14 @@
   }
 
   const PANIC_CODES = {
-    1: "assert fallido",
-    17: "desbordamiento aritmético",
-    18: "división por cero",
-    33: "valor de enum inválido",
-    49: "pop en un array vacío",
-    50: "índice de array fuera de rango",
-    65: "memoria insuficiente",
-    81: "función interna no inicializada",
+    1: ["assert fallido", "assertion failed", "assert falhou"],
+    17: ["desbordamiento aritmético", "arithmetic overflow", "estouro aritmético"],
+    18: ["división por cero", "division by zero", "divisão por zero"],
+    33: ["valor de enum inválido", "invalid enum value", "valor de enum inválido"],
+    49: ["pop en un array vacío", "pop on an empty array", "pop em um array vazio"],
+    50: ["índice de array fuera de rango", "array index out of bounds", "índice de array fora dos limites"],
+    65: ["memoria insuficiente", "out of memory", "memória insuficiente"],
+    81: ["función interna no inicializada", "uninitialized internal function", "função interna não inicializada"],
   };
   /** Interpreta los datos de un revert (Error(string), Panic o error custom). */
   function decodeRevertData(data) {
@@ -278,7 +280,9 @@
       return {
         kind: "panic",
         code,
-        message: PANIC_CODES[code] || `código de pánico 0x${code.toString(16)}`,
+        message: PANIC_CODES[code]
+          ? t(...PANIC_CODES[code])
+          : `${t("código de pánico", "panic code", "código de pânico")} 0x${code.toString(16)}`,
       };
     }
     return { kind: "custom", selector };

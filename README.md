@@ -19,6 +19,8 @@ npm run serve   # http://localhost:8080
 
 Para las verificaciones on-chain se necesita una API key de Alchemy (⚙ Configuración). Se guarda solo en `sessionStorage`, o en `localStorage` si marcas «recordar». Sin clave, la evaluación se hace solo con lo declarado y lo indica claramente.
 
+La interfaz está disponible en español, inglés y portugués. El inglés es el idioma inicial; la selección se guarda en el navegador.
+
 Redes EVM soportadas: Ethereum, Polygon, Optimism, Arbitrum, Base.
 
 ## Diseño por dispositivo

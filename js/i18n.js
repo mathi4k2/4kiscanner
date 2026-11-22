@@ -2,6 +2,8 @@
   "use strict";
   const K = (globalThis.Kiscan = globalThis.Kiscan || {});
   const STORAGE_KEY = "kiscan.locale";
+  let currentLocale = "en";
+  let storageUnavailable = false;
   const LOCALES = {
     es: {
       productTag: "Evaluador de operaciones cripto",
@@ -58,18 +60,247 @@
       reportTitle: "AVALIAÇÃO DE OPERAÇÃO CRIPTO",
     },
   };
+  const COPY = {
+    es: {
+      brandLabel: "4kiscan, inicio", transcriptAria: "Lo que llevamos hasta ahora",
+      introTitle: "¿Qué pasó con tus fondos?", introText: "Te haremos unas preguntas sobre la operación, el proveedor y las redes. Con tus respuestas, y con la transacción si tienes su hash, revisamos si la operación se hizo bien y por qué los fondos no llegaron o no están accesibles.",
+      introPoint1Title: "Separamos lo verificado de lo declarado.", introPoint1Text: "Lo que se comprueba en la red se marca distinto de lo que tú cuentas.",
+      introPoint2Title: "Explicamos los conceptos cuando hacen falta.", introPoint2Text: "Red, hash, memo, approve: sin dar nada por sabido.",
+      introPoint3Title: "Si algo no se puede saber, lo decimos.", introPoint3Text: "No adivinamos ni atribuimos culpas sin evidencia.",
+      introKeyNote: "Todavía no hay una clave de Alchemy. Puedes usar el evaluador igual: solo se basará en lo que cuentes. Si quieres que además compruebe la transacción en la red, agrégala en «Conexión con la red».",
+      transcriptTitle: "Lo que llevamos", noAnswer: "No indicado", editAnswer: "Cambiar la respuesta", flashPrefix: "Sobre tu respuesta anterior:",
+      conceptsQuestion: "Aclarar conceptos de esta pregunta", more: "Ver más", ownerClient: "De tu lado", ownerProvider: "Del lado del proveedor",
+      linkOrigin: "Transacción de origen en", linkDestination: "Entrada en destino",
+      ready: "Listo para evaluar", readyText: "Revisa lo que nos contaste en «Lo que llevamos»; puedes cambiar cualquier respuesta.",
+      readyWithKey: "Al evaluar, comprobaremos la transacción y la llegada de los fondos directamente en la red.",
+      readyNoKey: "Sin clave de Alchemy la evaluación se basará solo en lo que declaraste.",
+      evaluate: "Evaluar la operación", lastQuestion: "Volver a la última pregunta", addKey: "Agregar clave de Alchemy",
+      checkingTitle: "Revisando la operación", checkingText: "Consultamos la red y comparamos lo que encontramos con lo que nos contaste. Puede tardar unos segundos.",
+      cancel: "Cancelar y volver a las preguntas", errorTitle: "No pudimos completar la evaluación", unexpectedError: "Ocurrió un error inesperado.",
+      retry: "Intentar de nuevo", backQuestions: "Volver a las preguntas", confidence: "Confianza", verified: "Verificado en la red",
+      declared: "Lo que declaraste", inferred: "Inferido", readLines: "Cómo leer las líneas", concepts: "Conceptos",
+      noNetworkTitle: "Esta evaluación no consultó la red", noNetworkText: "Se basa solo en lo que declaraste.",
+      happened: "Qué pasó", nextSteps: "Qué hacer ahora", checks: "Qué comprobamos", transactionData: "Datos de la operación",
+      trust: "Cuánto confiar en esta evaluación", limits: "Límites", resultConcepts: "Conceptos para entender el resultado",
+      clientOperation: "La operación del cliente", recoverFunds: "¿Se pueden recuperar los fondos?", copyReport: "Copiar informe",
+      reviewAnswers: "Revisar respuestas", evaluateAgain: "Evaluar de nuevo", toastCopied: "Informe copiado",
+      toastCopyFailed: "No se pudo copiar; selecciona el texto manualmente", reportReady: "Dictamen listo:",
+      reportFailed: "No se pudo completar la evaluación", keySaved: "Clave guardada", keyRemoved: "Clave eliminada",
+      pasteKey: "Pega primero una clave.", testing: "Probando…", keyConnection: "Conexión correcta (Ethereum, bloque {block}).",
+      noConnection: "No se pudo conectar.", removeKeyConfirm: "Clave eliminada de este navegador.",
+      questionFlowPrompt: "¿Qué operación intentaste hacer?", questionFlowHelp: "Cada tipo de operación tiene sus propias formas de fallar y sus propios tiempos. Elige la que más se parezca.",
+      optionWithdrawal: "Retiré fondos desde un exchange o plataforma hacia mi wallet", optionDeposit: "Envié fondos desde mi wallet a un exchange o plataforma", optionWalletTransfer: "Envié fondos de una wallet a otra wallet", optionBridge: "Pasé fondos de una red a otra con un puente (bridge)", optionSwap: "Cambié un token por otro (swap)", optionOnramp: "Compré cripto (tarjeta, transferencia, P2P) y no la veo", optionOther: "Otra operación",
+      questionProviderBridge: "¿Qué puente o aplicación usaste?", questionProviderSwap: "¿Qué aplicación usaste para el intercambio?", questionProviderWallet: "¿Qué wallet o aplicación usaste para enviar?", questionProviderOther: "¿Qué plataforma o servicio usaste?",
+      questionProviderHelp: "Saber quién intervino nos permite explicar tiempos y condiciones típicas. Puedes omitirla si no lo recuerdas.",
+      questionSymptomPrompt: "¿Qué es lo que estás viendo?", questionSymptomHelp: "Describe el síntoma tal como lo ves, aunque no sepas la causa.",
+      symptomNotArrived: "Los fondos no llegaron", symptomNotVisible: "Dicen que llegaron, pero no los veo en mi saldo", symptomCannotUse: "Los veo, pero no los puedo usar, mover ni retirar", symptomPending: "Figura «pendiente» o «en proceso»", symptomFailed: "La aplicación dice que falló o fue rechazada", symptomLess: "Llegó menos de lo que esperaba",
+      questionElapsedPrompt: "¿Hace cuánto hiciste la operación?", questionElapsedHelp: "Muchas operaciones simplemente tardan; el tiempo transcurrido distingue una demora normal de un problema.",
+      timeLt1h: "Menos de 1 hora", time1to24h: "Entre 1 y 24 horas", time1to7d: "Entre 1 y 7 días", timeGt7d: "Más de 7 días",
+      questionAssetPrompt: "¿Qué activo enviaste?", questionAssetHelp: "El activo exacto importa: dos tokens con el mismo nombre pueden ser contratos distintos.", other: "Otro", optionPOL: "POL (antes MATIC)",
+      questionOtherAssetPrompt: "¿Cuál era el token?", questionOtherAssetHelp: "Con el nombre o símbolo podemos compararlo con lo que realmente se movió.", tokenPlaceholder: "Nombre o símbolo del token",
+      questionAmountPrompt: "¿Qué monto enviaste?", questionAmountHelp: "Lo comparamos con el monto observado en la red para detectar diferencias.", amountPlaceholder: "Por ejemplo: 250 o 0,5",
+      questionSrcHelp: "La red elegida al enviar es la causa más frecuente de fondos que no aparecen.",
+      questionDstHelp: "Compararemos la red por la que enviaste con la red que esperaba el destino.",
+      questionAddressDeposit: "¿Cuál es la dirección de depósito que usaste? Pégala exactamente como la copiaste.", questionAddressSwap: "¿Cuál es la dirección de tu wallet con la que operaste?", questionAddressDefault: "¿Cuál es la dirección donde esperabas recibir los fondos? Pégala exactamente como la usaste.",
+      questionAddressHelp: "La dirección permite verificar quién recibió realmente los fondos. Copia y pega, no la escribas a mano.",
+      questionAddressSourcePrompt: "¿De dónde sacaste esa dirección?", questionAddressSourceHelp: "Una dirección copiada del historial o de un mensaje es más propensa a errores que una copiada de la fuente.",
+      optionProviderPage: "De la página de depósito de la plataforma", optionOwnWallet: "De mi propia wallet", optionHistory: "Del historial de transacciones o contactos", optionTyped: "La escribí a mano", optionThirdParty: "Me la pasó otra persona",
+      questionThirdPartyPrompt: "¿Alguien te pidió o te indicó hacer este envío (un «asesor», una inversión, un premio, un soporte que te contactó)?", questionThirdPartyHelp: "Lo preguntamos a todos: algunas estafas se presentan como un servicio legítimo y conviene descartarlo.",
+      optionNoSelf: "No, lo decidí yo", optionYesDirected: "Sí, alguien me lo indicó",
+      questionMemoPrompt: "¿La plataforma te pidió un memo, tag o ID de destino, y lo incluiste?", questionMemoHelp: "En redes como XRP, Stellar, Cosmos o TON es obligatorio para identificar tu cuenta.",
+      optionRequiredIncluded: "Lo pidió y lo incluí", optionRequiredMissing: "Lo pidió y no lo incluí", optionNotRequired: "No pidió ninguno",
+      questionProviderStatusPrompt: "¿Qué estado muestra la plataforma o el puente para la operación?", questionProviderStatusHelp: "El estado que ve el proveedor nos indica si la operación ya salió a la red o sigue dentro de sus sistemas.",
+      statusCompletedSent: "Completada / enviada", statusProcessing: "En proceso / pendiente", statusReview: "En revisión (seguridad, verificación)", statusRejected: "Rechazada / cancelada / fallida", statusNoInfo: "No muestra ningún estado",
+      questionViewingNetworkPrompt: "¿En qué red estás mirando tu saldo en la wallet?", questionViewingNetworkHelp: "Las wallets muestran el saldo red por red: mirar la red equivocada es una causa muy común de «no llegó».",
+      questionTxHashDeposit: "¿Tienes el hash (TxID) del envío? Pégalo o pega el enlace del explorador.", questionTxHashDefault: "¿Tienes el hash (TxID) de la transacción? Pégalo o pega el enlace del explorador.",
+      questionTxHashHelp: "Es lo más importante: con el hash verificamos en la red qué pasó realmente, en lugar de basarnos solo en lo que recuerdas o lo que dice una app.",
+      questionTxHashPlaceholder: "0x… o enlace de Etherscan / Polygonscan / etc.", questionAddressPlaceholder: "0x… (o la dirección que usaste)",
+      questionProviderPlaceholder: "Por ejemplo: Binance, Across, MetaMask, Uniswap…",
+      yes: "Sí", no: "No", dontKnow: "No lo sé",
+      errUnknownQuestion: "Pregunta desconocida.", errRequiredQuestion: "Esta pregunta es necesaria para poder evaluar la operación.",
+      errChooseOption: "Elige una de las opciones.", errWriteAnswer: "Escribe una respuesta.",
+      errAmount: "Escribe un monto válido, por ejemplo 250 o 0,5.", errHash: "Hash no válido.", errUnsupportedQuestion: "Tipo de pregunta no soportado.",
+      sourceWithdrawal: "¿Qué red elegiste en el formulario de retiro?", sourceSent: "¿Por qué red enviaste los fondos desde tu wallet?", sourceBridge: "¿En qué red estaban tus fondos antes de la operación (red de origen)?", sourceSwap: "¿En qué red hiciste el intercambio?", sourceDefault: "¿Por qué red se enviaron los fondos?",
+      destinationWithdrawal: "¿En qué red esperabas recibir los fondos en tu wallet?", destinationDeposit: "¿Qué red indicaba la plataforma para depositar?", destinationBridge: "¿A qué red querías llevar los fondos (red de destino)?", destinationOnramp: "¿En qué red debía llegar la cripto que compraste?", destinationDefault: "¿En qué red esperabas que llegaran los fondos?",
+      changeLanguage: "Cambiar idioma",
+    },
+    en: {
+      brandLabel: "4kiscan, home", transcriptAria: "Your answers so far",
+      introTitle: "What happened to your funds?", introText: "We'll ask about the operation, provider and networks. Using your answers and, if available, the transaction hash, we'll assess whether it went correctly and why the funds did not arrive or are inaccessible.",
+      introPoint1Title: "We separate verified facts from what you report.", introPoint1Text: "Information checked on the network is marked differently from what you tell us.",
+      introPoint2Title: "We explain concepts when they matter.", introPoint2Text: "Networks, hashes, memos, approvals—no prior knowledge assumed.",
+      introPoint3Title: "If something cannot be known, we say so.", introPoint3Text: "We do not guess or assign blame without evidence.",
+      introKeyNote: "No Alchemy key is set yet. You can still use the evaluator: it will rely only on what you tell us. To verify the transaction on-chain, add a key in “Network connection”.",
+      transcriptTitle: "Your answers so far", noAnswer: "Not provided", editAnswer: "Change answer", flashPrefix: "About your previous answer:",
+      conceptsQuestion: "Explain concepts in this question", more: "Learn more", ownerClient: "On your side", ownerProvider: "On the provider's side",
+      linkOrigin: "Source transaction on", linkDestination: "Destination transfer",
+      ready: "Ready to evaluate", readyText: "Review what you told us in “Your answers so far”; you can change any answer.",
+      readyWithKey: "When you evaluate, we'll check the transaction and arrival of funds directly on the network.",
+      readyNoKey: "Without an Alchemy key, the evaluation will rely only on what you reported.",
+      evaluate: "Evaluate transaction", lastQuestion: "Back to the last question", addKey: "Add Alchemy key",
+      checkingTitle: "Checking the operation", checkingText: "We are querying the network and comparing what we find with what you told us. This may take a few seconds.",
+      cancel: "Cancel and return to questions", errorTitle: "We couldn't complete the evaluation", unexpectedError: "An unexpected error occurred.",
+      retry: "Try again", backQuestions: "Back to questions", confidence: "Confidence", verified: "Verified on the network",
+      declared: "Reported by you", inferred: "Inferred", readLines: "How to read the lines", concepts: "Concepts",
+      noNetworkTitle: "This evaluation did not query the network", noNetworkText: "It is based only on what you reported.",
+      happened: "What happened", nextSteps: "What to do next", checks: "What we checked", transactionData: "Transaction data",
+      trust: "How much to trust this evaluation", limits: "Limitations", resultConcepts: "Concepts to understand the result",
+      clientOperation: "Your operation", recoverFunds: "Can the funds be recovered?", copyReport: "Copy report",
+      reviewAnswers: "Review answers", evaluateAgain: "Evaluate again", toastCopied: "Report copied",
+      toastCopyFailed: "Couldn't copy; select the text manually", reportReady: "Evaluation ready:",
+      reportFailed: "The evaluation could not be completed", keySaved: "Key saved", keyRemoved: "Key removed",
+      pasteKey: "Paste a key first.", testing: "Testing…", keyConnection: "Connected (Ethereum, block {block}).",
+      noConnection: "Could not connect.", removeKeyConfirm: "Key removed from this browser.",
+      questionFlowPrompt: "What operation did you try to make?", questionFlowHelp: "Each type of operation can fail in different ways and takes a different amount of time. Choose the closest match.",
+      optionWithdrawal: "I withdrew funds from an exchange or platform to my wallet", optionDeposit: "I sent funds from my wallet to an exchange or platform", optionWalletTransfer: "I sent funds from one wallet to another", optionBridge: "I moved funds between networks using a bridge", optionSwap: "I swapped one token for another", optionOnramp: "I bought crypto with a card, bank transfer or P2P and can't see it", optionOther: "Another operation",
+      questionProviderBridge: "Which bridge or app did you use?", questionProviderSwap: "Which app did you use for the swap?", questionProviderWallet: "Which wallet or app did you use to send?", questionProviderOther: "Which platform or service did you use?",
+      questionProviderHelp: "Knowing which service was involved helps us explain typical timings and conditions. You can skip this if you don't remember.",
+      questionSymptomPrompt: "What are you seeing?", questionSymptomHelp: "Describe the symptom as you see it, even if you don't know the cause.",
+      symptomNotArrived: "The funds did not arrive", symptomNotVisible: "They say the funds arrived, but I can't see them in my balance", symptomCannotUse: "I can see them, but can't use, move or withdraw them", symptomPending: "Status says “pending” or “processing”", symptomFailed: "The app says it failed or was rejected", symptomLess: "Less arrived than I expected",
+      questionElapsedPrompt: "How long ago did you make the transaction?", questionElapsedHelp: "Many operations simply take time; elapsed time helps distinguish a normal delay from a problem.",
+      timeLt1h: "Less than 1 hour", time1to24h: "Between 1 and 24 hours", time1to7d: "Between 1 and 7 days", timeGt7d: "More than 7 days",
+      questionAssetPrompt: "What asset did you send?", questionAssetHelp: "The exact asset matters: two tokens with the same name can be different contracts.", other: "Other", optionPOL: "POL (formerly MATIC)",
+      questionOtherAssetPrompt: "Which token was it?", questionOtherAssetHelp: "The name or symbol helps us compare it with what actually moved.", tokenPlaceholder: "Token name or symbol",
+      questionAmountPrompt: "How much did you send?", questionAmountHelp: "We'll compare it with the amount observed on-chain to identify differences.", amountPlaceholder: "For example: 250 or 0.5",
+      questionSrcHelp: "Choosing the wrong sending network is the most common reason funds seem to disappear.",
+      questionDstHelp: "We'll compare the network you sent on with the network expected by the destination.",
+      questionAddressDeposit: "What deposit address did you use? Paste it exactly as you copied it.", questionAddressSwap: "What wallet address did you use for the operation?", questionAddressDefault: "At which address did you expect to receive the funds? Paste it exactly as you used it.",
+      questionAddressHelp: "The address lets us verify who actually received the funds. Copy and paste it; don't type it by hand.",
+      questionAddressSourcePrompt: "Where did you get that address?", questionAddressSourceHelp: "An address copied from history or a message is more error-prone than one copied from the original source.",
+      optionProviderPage: "From the platform's deposit page", optionOwnWallet: "From my own wallet", optionHistory: "From transaction history or contacts", optionTyped: "I typed it by hand", optionThirdParty: "Someone else gave it to me",
+      questionThirdPartyPrompt: "Did someone ask or tell you to make this transfer (an “advisor,” investment, prize, or support agent who contacted you)?", questionThirdPartyHelp: "We ask everyone: some scams pose as legitimate services, so it's worth ruling this out.",
+      optionNoSelf: "No, I decided myself", optionYesDirected: "Yes, someone instructed me",
+      questionMemoPrompt: "Did the platform require a memo, tag or destination ID, and did you include it?", questionMemoHelp: "On networks such as XRP, Stellar, Cosmos or TON, it is required to identify your account.",
+      optionRequiredIncluded: "It was required and I included it", optionRequiredMissing: "It was required and I left it out", optionNotRequired: "It was not required",
+      questionProviderStatusPrompt: "What status does the platform or bridge show for the operation?", questionProviderStatusHelp: "The provider's status tells us whether the operation has reached the network or is still within its own systems.",
+      statusCompletedSent: "Completed / sent", statusProcessing: "Processing / pending", statusReview: "Under review (security, verification)", statusRejected: "Rejected / canceled / failed", statusNoInfo: "No status shown",
+      questionViewingNetworkPrompt: "Which network are you viewing your wallet balance on?", questionViewingNetworkHelp: "Wallets show balances separately for each network; checking the wrong one is a common reason funds seem missing.",
+      questionTxHashDeposit: "Do you have the transaction hash (TxID) for the transfer? Paste it or the block explorer link.", questionTxHashDefault: "Do you have the transaction hash (TxID)? Paste it or the block explorer link.",
+      questionTxHashHelp: "This is the most important detail: with the hash we can verify what actually happened on-chain instead of relying only on memory or an app's status.",
+      questionTxHashPlaceholder: "0x… or an Etherscan / Polygonscan link", questionAddressPlaceholder: "0x… (or the address you used)",
+      questionProviderPlaceholder: "For example: Binance, Across, MetaMask, Uniswap…",
+      yes: "Yes", no: "No", dontKnow: "I don't know",
+      errUnknownQuestion: "Unknown question.", errRequiredQuestion: "This question is required to evaluate the operation.",
+      errChooseOption: "Choose one of the options.", errWriteAnswer: "Enter an answer.",
+      errAmount: "Enter a valid amount, for example 250 or 0.5.", errHash: "Invalid hash.", errUnsupportedQuestion: "Unsupported question type.",
+      sourceWithdrawal: "Which network did you select in the withdrawal form?", sourceSent: "Which network did you use to send funds from your wallet?", sourceBridge: "Which network held your funds before the operation (source network)?", sourceSwap: "Which network did you use for the swap?", sourceDefault: "Which network was used to send the funds?",
+      destinationWithdrawal: "Which network did you expect to receive the funds on in your wallet?", destinationDeposit: "Which network did the platform specify for the deposit?", destinationBridge: "Which network did you want to send the funds to (destination network)?", destinationOnramp: "Which network should receive the crypto you bought?", destinationDefault: "Which network did you expect to receive the funds on?",
+      changeLanguage: "Change language",
+    },
+    pt: {
+      brandLabel: "4kiscan, início", transcriptAria: "Suas respostas até agora",
+      introTitle: "O que aconteceu com seus fundos?", introText: "Faremos algumas perguntas sobre a operação, o provedor e as redes. Com suas respostas e, se disponível, o hash da transação, avaliaremos se tudo ocorreu corretamente e por que os fundos não chegaram ou estão inacessíveis.",
+      introPoint1Title: "Separamos o que foi verificado do que foi informado.", introPoint1Text: "O que é verificado na rede aparece marcado de forma diferente do que você nos conta.",
+      introPoint2Title: "Explicamos os conceitos quando necessário.", introPoint2Text: "Rede, hash, memo, aprovação: não presumimos conhecimento prévio.",
+      introPoint3Title: "Se algo não puder ser determinado, avisamos.", introPoint3Text: "Não fazemos suposições nem atribuímos culpa sem evidências.",
+      introKeyNote: "Ainda não há uma chave da Alchemy. Você pode usar o avaliador mesmo assim: ele se baseará apenas no que informar. Para verificar a transação na rede, adicione uma chave em “Conexão de rede”.",
+      transcriptTitle: "Suas respostas até agora", noAnswer: "Não informado", editAnswer: "Alterar resposta", flashPrefix: "Sobre sua resposta anterior:",
+      conceptsQuestion: "Explicar conceitos desta pergunta", more: "Saiba mais", ownerClient: "Do seu lado", ownerProvider: "Do lado do provedor",
+      linkOrigin: "Transação de origem em", linkDestination: "Entrada no destino",
+      ready: "Pronto para avaliar", readyText: "Revise o que você informou em «Suas respostas até agora»; é possível alterar qualquer resposta.",
+      readyWithKey: "Ao avaliar, verificaremos a transação e a chegada dos fundos diretamente na rede.",
+      readyNoKey: "Sem uma chave da Alchemy, a avaliação será baseada apenas no que você informou.",
+      evaluate: "Avaliar a operação", lastQuestion: "Voltar à última pergunta", addKey: "Adicionar chave da Alchemy",
+      checkingTitle: "Verificando a operação", checkingText: "Consultamos a rede e comparamos o que encontramos com o que você informou. Isso pode levar alguns segundos.",
+      cancel: "Cancelar e voltar às perguntas", errorTitle: "Não foi possível concluir a avaliação", unexpectedError: "Ocorreu um erro inesperado.",
+      retry: "Tentar novamente", backQuestions: "Voltar às perguntas", confidence: "Confiança", verified: "Verificado na rede",
+      declared: "Informado por você", inferred: "Inferido", readLines: "Como ler as linhas", concepts: "Conceitos",
+      noNetworkTitle: "Esta avaliação não consultou a rede", noNetworkText: "Ela se baseia apenas no que você informou.",
+      happened: "O que aconteceu", nextSteps: "O que fazer agora", checks: "O que verificamos", transactionData: "Dados da operação",
+      trust: "Quanto confiar nesta avaliação", limits: "Limites", resultConcepts: "Conceitos para entender o resultado",
+      clientOperation: "Sua operação", recoverFunds: "É possível recuperar os fundos?", copyReport: "Copiar relatório",
+      reviewAnswers: "Revisar respostas", evaluateAgain: "Avaliar novamente", toastCopied: "Relatório copiado",
+      toastCopyFailed: "Não foi possível copiar; selecione o texto manualmente", reportReady: "Avaliação pronta:",
+      reportFailed: "Não foi possível concluir a avaliação", keySaved: "Chave salva", keyRemoved: "Chave removida",
+      pasteKey: "Cole uma chave primeiro.", testing: "Testando…", keyConnection: "Conexão bem-sucedida (Ethereum, bloco {block}).",
+      noConnection: "Não foi possível conectar.", removeKeyConfirm: "Chave removida deste navegador.",
+      questionFlowPrompt: "Que operação você tentou fazer?", questionFlowHelp: "Cada tipo de operação pode falhar de formas diferentes e levar tempos distintos. Escolha a opção mais parecida.",
+      optionWithdrawal: "Retirei fundos de um exchange ou plataforma para minha carteira", optionDeposit: "Enviei fundos da minha carteira para um exchange ou plataforma", optionWalletTransfer: "Enviei fundos de uma carteira para outra", optionBridge: "Mudei fundos de uma rede para outra usando uma ponte", optionSwap: "Troquei um token por outro", optionOnramp: "Comprei cripto com cartão, transferência ou P2P e não consigo ver", optionOther: "Outra operação",
+      questionProviderBridge: "Qual ponte ou aplicativo você usou?", questionProviderSwap: "Qual aplicativo você usou para a troca?", questionProviderWallet: "Qual carteira ou aplicativo você usou para enviar?", questionProviderOther: "Qual plataforma ou serviço você usou?",
+      questionProviderHelp: "Saber qual serviço participou nos ajuda a explicar prazos e condições típicos. Você pode omitir se não se lembrar.",
+      questionSymptomPrompt: "O que você está vendo?", questionSymptomHelp: "Descreva o sintoma como aparece para você, mesmo sem saber a causa.",
+      symptomNotArrived: "Os fundos não chegaram", symptomNotVisible: "Dizem que chegaram, mas não consigo vê-los no saldo", symptomCannotUse: "Consigo vê-los, mas não posso usar, mover ou sacar", symptomPending: "O status aparece como “pendente” ou “em processamento”", symptomFailed: "O aplicativo informa que falhou ou foi rejeitada", symptomLess: "Chegou menos do que eu esperava",
+      questionElapsedPrompt: "Há quanto tempo você fez a operação?", questionElapsedHelp: "Muitas operações simplesmente levam tempo; o tempo decorrido ajuda a distinguir uma demora normal de um problema.",
+      timeLt1h: "Menos de uma hora", time1to24h: "Entre 1 e 24 horas", time1to7d: "Entre 1 e 7 dias", timeGt7d: "Mais de 7 dias",
+      questionAssetPrompt: "Qual ativo você enviou?", questionAssetHelp: "O ativo exato importa: dois tokens com o mesmo nome podem ter contratos diferentes.", other: "Outro", optionPOL: "POL (antes MATIC)",
+      questionOtherAssetPrompt: "Qual era o token?", questionOtherAssetHelp: "O nome ou símbolo ajuda a comparar com o que realmente foi movimentado.", tokenPlaceholder: "Nome ou símbolo do token",
+      questionAmountPrompt: "Qual valor você enviou?", questionAmountHelp: "Vamos comparar com o valor observado na rede para identificar diferenças.", amountPlaceholder: "Por exemplo: 250 ou 0,5",
+      questionSrcHelp: "Escolher a rede errada ao enviar é o motivo mais comum para os fundos parecerem desaparecidos.",
+      questionDstHelp: "Vamos comparar a rede usada no envio com a rede esperada pelo destino.",
+      questionAddressDeposit: "Qual endereço de depósito você usou? Cole exatamente como copiou.", questionAddressSwap: "Qual endereço da sua carteira você usou na operação?", questionAddressDefault: "Em qual endereço você esperava receber os fundos? Cole exatamente como usou.",
+      questionAddressHelp: "O endereço permite verificar quem realmente recebeu os fundos. Copie e cole; não digite manualmente.",
+      questionAddressSourcePrompt: "Onde você encontrou esse endereço?", questionAddressSourceHelp: "Um endereço copiado do histórico ou de uma mensagem tem mais chance de erro do que um copiado da fonte original.",
+      optionProviderPage: "Na página de depósito da plataforma", optionOwnWallet: "Na minha própria carteira", optionHistory: "No histórico de transações ou contatos", optionTyped: "Digitei manualmente", optionThirdParty: "Outra pessoa me passou",
+      questionThirdPartyPrompt: "Alguém pediu ou orientou você a fazer esse envio (um “consultor”, investimento, prêmio ou suporte que entrou em contato)?", questionThirdPartyHelp: "Perguntamos a todos: alguns golpes se apresentam como serviços legítimos, então é importante descartar essa possibilidade.",
+      optionNoSelf: "Não, decidi por conta própria", optionYesDirected: "Sim, alguém me orientou",
+      questionMemoPrompt: "A plataforma exigiu um memo, tag ou ID de destino, e você o incluiu?", questionMemoHelp: "Em redes como XRP, Stellar, Cosmos ou TON, ele é obrigatório para identificar sua conta.",
+      optionRequiredIncluded: "Foi exigido e eu incluí", optionRequiredMissing: "Foi exigido e não incluí", optionNotRequired: "Não foi exigido",
+      questionProviderStatusPrompt: "Qual status a plataforma ou a ponte mostra para a operação?", questionProviderStatusHelp: "O status do provedor indica se a operação já chegou à rede ou ainda está nos sistemas dele.",
+      statusCompletedSent: "Concluída / enviada", statusProcessing: "Em processamento / pendente", statusReview: "Em análise (segurança, verificação)", statusRejected: "Rejeitada / cancelada / falhou", statusNoInfo: "Nenhum status informado",
+      questionViewingNetworkPrompt: "Em qual rede você está consultando o saldo da carteira?", questionViewingNetworkHelp: "As carteiras mostram saldos separados por rede; consultar a rede errada é um motivo comum para os fundos parecerem ausentes.",
+      questionTxHashDeposit: "Você tem o hash (TxID) do envio? Cole o hash ou o link do explorador.", questionTxHashDefault: "Você tem o hash (TxID) da transação? Cole o hash ou o link do explorador.",
+      questionTxHashHelp: "Este é o dado mais importante: com o hash verificamos o que realmente aconteceu na rede, sem depender apenas da memória ou do status de um aplicativo.",
+      questionTxHashPlaceholder: "0x… ou link do Etherscan / Polygonscan", questionAddressPlaceholder: "0x… (ou o endereço usado)",
+      questionProviderPlaceholder: "Por exemplo: Binance, Across, MetaMask, Uniswap…",
+      yes: "Sim", no: "Não", dontKnow: "Não sei",
+      errUnknownQuestion: "Pergunta desconhecida.", errRequiredQuestion: "Esta pergunta é necessária para avaliar a operação.",
+      errChooseOption: "Escolha uma das opções.", errWriteAnswer: "Digite uma resposta.",
+      errAmount: "Digite um valor válido, por exemplo 250 ou 0,5.", errHash: "Hash inválido.", errUnsupportedQuestion: "Tipo de pergunta não suportado.",
+      sourceWithdrawal: "Qual rede você escolheu no formulário de saque?", sourceSent: "Por qual rede você enviou os fundos da sua carteira?", sourceBridge: "Em qual rede seus fundos estavam antes da operação (rede de origem)?", sourceSwap: "Em qual rede você fez a troca?", sourceDefault: "Por qual rede os fundos foram enviados?",
+      destinationWithdrawal: "Em qual rede você esperava receber os fundos na carteira?", destinationDeposit: "Qual rede a plataforma indicou para o depósito?", destinationBridge: "Para qual rede você queria enviar os fundos (rede de destino)?", destinationOnramp: "Em qual rede deveria chegar a criptomoeda comprada?", destinationDefault: "Em qual rede você esperava receber os fundos?",
+      changeLanguage: "Alterar idioma",
+    },
+  };
+  const ADDITIONAL_COPY = {
+    es: {
+      checksSub: "La línea a la izquierda de cada punto indica de dónde sale el dato.", alerts: "Alertas", progress: "Avance de la entrevista",
+      confidence_high: "alta", confidence_medium: "media", confidence_low: "baja",
+      buildVerdictError: "Se produjo un error al armar el dictamen:", localeChanged: "Idioma actualizado",
+      pageTitle: "4kiscan · Evaluador de operaciones cripto",
+      pageDescription: "Responde preguntas sobre tu operación cripto y averigua si salió bien y por qué los fondos no llegaron o no están accesibles.",
+    },
+    en: {
+      checksSub: "The line beside each item shows where the information comes from.", alerts: "Alerts", progress: "Interview progress",
+      confidence_high: "high", confidence_medium: "medium", confidence_low: "low",
+      buildVerdictError: "An error occurred while preparing the evaluation:", localeChanged: "Language updated",
+      pageTitle: "4kiscan · Crypto transaction evaluator",
+      pageDescription: "Answer questions about your crypto transaction and find out whether it went well and why the funds did not arrive or are inaccessible.",
+    },
+    pt: {
+      checksSub: "A linha ao lado de cada item indica a origem da informação.", alerts: "Alertas", progress: "Progresso da entrevista",
+      confidence_high: "alta", confidence_medium: "média", confidence_low: "baixa",
+      buildVerdictError: "Ocorreu um erro ao preparar a avaliação:", localeChanged: "Idioma atualizado",
+      pageTitle: "4kiscan · Avaliador de operações cripto",
+      pageDescription: "Responda a perguntas sobre sua operação cripto e descubra se ela ocorreu corretamente e por que os fundos não chegaram ou estão inacessíveis.",
+    },
+  };
+  for (const locale of Object.keys(ADDITIONAL_COPY)) Object.assign(COPY[locale], ADDITIONAL_COPY[locale]);
+  for (const locale of Object.keys(COPY)) Object.assign(LOCALES[locale], COPY[locale]);
 
   function normalize(value) {
     const key = String(value || "").toLowerCase().slice(0, 2);
     return LOCALES[key] ? key : "en";
   }
   function getLocale() {
-    try { return normalize(localStorage.getItem(STORAGE_KEY) || "en"); } catch (_) { return "en"; }
+    if (!storageUnavailable) {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) currentLocale = normalize(saved);
+      } catch (_) {
+        storageUnavailable = true;
+      }
+    }
+    return currentLocale;
   }
   function setLocale(locale) {
-    const next = normalize(locale);
-    try { localStorage.setItem(STORAGE_KEY, next); } catch (_) {}
-    document.documentElement.lang = next;
+    currentLocale = normalize(locale);
+    try {
+      localStorage.setItem(STORAGE_KEY, currentLocale);
+      storageUnavailable = false;
+    } catch (_) {
+      storageUnavailable = true;
+    }
+    if (typeof document !== "undefined" && document.documentElement) document.documentElement.lang = currentLocale;
   }
   function t(key) {
     const locale = getLocale();
