@@ -85,6 +85,8 @@ button { font: inherit; color: inherit; }
 .brand__mark path { fill: none; stroke: #7fd0f0; stroke-width: 2.4; }
 .brand__name { font: 700 1.2rem var(--serif); letter-spacing: 0.01em; }
 .masthead__tag { color: var(--ink-soft); font-size: var(--step--1); flex: 1; }
+.language-picker { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--ink-soft); font-size: var(--step--1); }
+.language-picker select { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); color: var(--ink); padding: 0.35rem 0.45rem; }
 .link-status { display: inline-flex; align-items: center; gap: 0.5rem; border: 1px solid var(--rule); background: transparent; padding: 0.4rem 0.75rem; border-radius: 999px; cursor: pointer; font-size: var(--step--1); }
 .link-status__dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--unknown); }
 .link-status[data-state="on"] .link-status__dot { background: var(--ok); }

@@ -28,14 +28,18 @@
     return "unknown";
   }
   function networkOptions() {
+    const locale = typeof K.getLocale === "function" ? K.getLocale() : "es";
+    const unsupported = locale === "en" ? "not verifiable here" : locale === "pt" ? "não verificável aqui" : "no verificable aquí";
+    const unknown = locale === "en" ? "I don't know" : locale === "pt" ? "Não sei" : "No lo sé";
+    const other = locale === "en" ? "Another non-EVM network (XRP, Cosmos…)" : locale === "pt" ? "Outra rede não EVM (XRP, Cosmos…)" : "Otra red no EVM (XRP, Cosmos…)";
     return [
       ...Object.keys(K.CHAINS).map((n) => ({ value: n, label: n })),
-      ...K.UNSUPPORTED_NETWORKS.map((n) => ({ value: n.name, label: `${n.name} (no verificable aquí)` })),
+      ...K.UNSUPPORTED_NETWORKS.map((n) => ({ value: n.name, label: `${n.name} (${unsupported})` })),
       { value: "Tron", label: "Tron (TRC-20)" },
       { value: "Solana", label: "Solana" },
       { value: "Bitcoin", label: "Bitcoin" },
-      { value: "Otra red no EVM", label: "Otra red no EVM (XRP, Cosmos…)" },
-      { value: "unknown", label: "No lo sé" },
+      { value: "Otra red no EVM", label: other },
+      { value: "unknown", label: unknown },
     ];
   }
   /** ¿El formato de dirección es coherente con la red? true | false | null (no se puede saber). */

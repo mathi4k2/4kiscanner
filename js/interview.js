@@ -10,6 +10,7 @@
   const UNKNOWN = "unknown";
   const EXCHANGE_FLOWS = ["exchange_withdrawal", "exchange_deposit"];
   const NON_SWAP = (a) => a.flow !== "swap";
+  const locale = () => (typeof K.getLocale === "function" ? K.getLocale() : "es");
 
   const YES_NO_UNSURE = [
     { value: "yes", label: "Sí" },
@@ -18,6 +19,20 @@
   ];
 
   function srcPrompt(a) {
+    if (locale() === "en") {
+      if (a.flow === "exchange_withdrawal") return "Which network did you select in the withdrawal form?";
+      if (a.flow === "exchange_deposit" || a.flow === "wallet_transfer") return "Which network did you use to send funds from your wallet?";
+      if (a.flow === "bridge") return "Which network held your funds before the operation (source network)?";
+      if (a.flow === "swap") return "Which network did you use for the swap?";
+      return "Which network was used to send the funds?";
+    }
+    if (locale() === "pt") {
+      if (a.flow === "exchange_withdrawal") return "Qual rede você escolheu no formulário de saque?";
+      if (a.flow === "exchange_deposit" || a.flow === "wallet_transfer") return "Por qual rede você enviou os fundos da sua carteira?";
+      if (a.flow === "bridge") return "Em qual rede seus fundos estavam antes da operação (rede de origem)?";
+      if (a.flow === "swap") return "Em qual rede você fez a troca?";
+      return "Por qual rede os fundos foram enviados?";
+    }
     switch (a.flow) {
       case "exchange_withdrawal":
         return "¿Qué red elegiste en el formulario de retiro?";
@@ -33,6 +48,20 @@
     }
   }
   function dstPrompt(a) {
+    if (locale() === "en") {
+      if (a.flow === "exchange_withdrawal") return "Which network did you expect to receive the funds on in your wallet?";
+      if (a.flow === "exchange_deposit") return "Which network did the platform specify for the deposit?";
+      if (a.flow === "bridge") return "Which network did you want to receive the funds on (destination network)?";
+      if (a.flow === "onramp") return "Which network should receive the crypto you bought?";
+      return "Which network did you expect to receive the funds on?";
+    }
+    if (locale() === "pt") {
+      if (a.flow === "exchange_withdrawal") return "Em qual rede você esperava receber os fundos na carteira?";
+      if (a.flow === "exchange_deposit") return "Qual rede a plataforma indicou para o depósito?";
+      if (a.flow === "bridge") return "Para qual rede você queria levar os fundos (rede de destino)?";
+      if (a.flow === "onramp") return "Em qual rede deveria chegar a criptomoeda comprada?";
+      return "Em qual rede você esperava que os fundos chegassem?";
+    }
     switch (a.flow) {
       case "exchange_withdrawal":
         return "¿En qué red esperabas recibir los fondos en tu wallet?";
@@ -56,17 +85,40 @@
     {
       id: "flow",
       type: "choice",
-      prompt: () => "¿Qué operación intentaste hacer?",
+      prompt: () => locale() === "en" ? "What operation did you try to make?" : locale() === "pt" ? "Que operação você tentou fazer?" : "¿Qué operación intentaste hacer?",
       help: () => "Cada tipo de operación tiene sus propias formas de fallar y sus propios tiempos. Elige la que más se parezca.",
-      options: () => Object.entries(K.FLOWS).map(([value, f]) => ({ value, label: f.label })),
+      options: () => {
+        if (locale() === "en") return [
+          { value: "exchange_withdrawal", label: "I withdrew funds from an exchange or platform to my wallet" },
+          { value: "exchange_deposit", label: "I sent funds from my wallet to an exchange or platform" },
+          { value: "wallet_transfer", label: "I sent funds from one wallet to another" },
+          { value: "bridge", label: "I moved funds from one network to another using a bridge" },
+          { value: "swap", label: "I swapped one token for another" },
+          { value: "onramp", label: "I bought crypto with a card, bank transfer or P2P and cannot see it" },
+          { value: "other", label: "Another operation" },
+        ];
+        if (locale() === "pt") return [
+          { value: "exchange_withdrawal", label: "Retirei fundos de um exchange ou plataforma para minha carteira" },
+          { value: "exchange_deposit", label: "Enviei fundos da minha carteira para um exchange ou plataforma" },
+          { value: "wallet_transfer", label: "Enviei fundos de uma carteira para outra" },
+          { value: "bridge", label: "Passei fundos de uma rede para outra com uma ponte" },
+          { value: "swap", label: "Troquei um token por outro" },
+          { value: "onramp", label: "Comprei cripto com cartão, transferência ou P2P e não consigo ver" },
+          { value: "other", label: "Outra operação" },
+        ];
+        return Object.entries(K.FLOWS).map(([value, f]) => ({ value, label: f.label }));
+      },
     },
     {
       id: "provider",
       type: "text",
       optional: true,
       placeholder: "Por ejemplo: Binance, Across, MetaMask, Uniswap…",
-      prompt: (a) =>
-        a.flow === "bridge"
+      prompt: (a) => locale() === "en"
+        ? (a.flow === "bridge" ? "Which bridge or app did you use?" : a.flow === "swap" ? "Which app did you use for the swap?" : a.flow === "wallet_transfer" ? "Which wallet or app did you use to send?" : "Which platform or service did you use?")
+        : locale() === "pt"
+        ? (a.flow === "bridge" ? "Qual ponte ou aplicativo você usou?" : a.flow === "swap" ? "Qual aplicativo você usou para a troca?" : a.flow === "wallet_transfer" ? "Qual carteira ou aplicativo você usou para enviar?" : "Qual plataforma ou serviço você usou?")
+        : a.flow === "bridge"
           ? "¿Qué puente o aplicación usaste?"
           : a.flow === "swap"
           ? "¿Qué aplicación usaste para el intercambio?"
@@ -78,9 +130,23 @@
     {
       id: "symptom",
       type: "choice",
-      prompt: () => "¿Qué es lo que estás viendo?",
+      prompt: () => locale() === "en" ? "What are you seeing?" : locale() === "pt" ? "O que você está vendo?" : "¿Qué es lo que estás viendo?",
       help: () => "Describe el síntoma tal como lo ves, aunque no sepas la causa.",
-      options: () => [
+      options: () => locale() === "en" ? [
+        { value: "not_arrived", label: "The funds did not arrive" },
+        { value: "not_visible", label: "They say the funds arrived, but I cannot see them" },
+        { value: "cannot_use", label: "I can see them, but cannot use, move or withdraw them" },
+        { value: "pending_status", label: "Status says “pending” or “processing”" },
+        { value: "failed_status", label: "The app says it failed or was rejected" },
+        { value: "less_amount", label: "Less arrived than expected" },
+      ] : locale() === "pt" ? [
+        { value: "not_arrived", label: "Os fundos não chegaram" },
+        { value: "not_visible", label: "Dizem que chegaram, mas não consigo ver no saldo" },
+        { value: "cannot_use", label: "Consigo ver, mas não posso usar, mover ou sacar" },
+        { value: "pending_status", label: "Mostra “pendente” ou “em processamento”" },
+        { value: "failed_status", label: "O aplicativo diz que falhou ou foi rejeitada" },
+        { value: "less_amount", label: "Chegou menos do que eu esperava" },
+      ] : [
         { value: "not_arrived", label: "Los fondos no llegaron" },
         { value: "not_visible", label: "Dicen que llegaron, pero no los veo en mi saldo" },
         { value: "cannot_use", label: "Los veo, pero no los puedo usar, mover ni retirar" },
@@ -92,15 +158,14 @@
     {
       id: "elapsed",
       type: "choice",
-      prompt: () => "¿Hace cuánto hiciste la operación?",
+      prompt: () => locale() === "en" ? "How long ago did you make the operation?" : locale() === "pt" ? "Quando você fez a operação?" : "¿Hace cuánto hiciste la operación?",
       help: () => "Muchas operaciones simplemente tardan; el tiempo transcurrido distingue una demora normal de un problema.",
       concepts: ["confirmaciones"],
-      options: () => [
-        { value: "lt1h", label: "Menos de 1 hora" },
-        { value: "1_24h", label: "Entre 1 y 24 horas" },
-        { value: "1_7d", label: "Entre 1 y 7 días" },
-        { value: "gt7d", label: "Más de 7 días" },
-      ],
+      options: () => locale() === "en"
+        ? [{ value: "lt1h", label: "Less than 1 hour" }, { value: "1_24h", label: "Between 1 and 24 hours" }, { value: "1_7d", label: "Between 1 and 7 days" }, { value: "gt7d", label: "More than 7 days" }]
+        : locale() === "pt"
+        ? [{ value: "lt1h", label: "Menos de 1 hora" }, { value: "1_24h", label: "Entre 1 e 24 horas" }, { value: "1_7d", label: "Entre 1 e 7 dias" }, { value: "gt7d", label: "Mais de 7 dias" }]
+        : [{ value: "lt1h", label: "Menos de 1 hora" }, { value: "1_24h", label: "Entre 1 y 24 horas" }, { value: "1_7d", label: "Entre 1 y 7 días" }, { value: "gt7d", label: "Más de 7 días" }],
     },
     {
       id: "asset",

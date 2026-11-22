@@ -71,6 +71,25 @@
     lifi: "Consultando el estado del puente",
     inbound: "Buscando entradas recientes en tu wallet",
   };
+  const STEP_LABELS = {
+    es: STEP_LABEL,
+    en: {
+      detect: "Looking for the transaction across the five networks",
+      transaction: "Reading the transaction and receipt",
+      diagnose: "Analyzing what the transaction did",
+      radar: "Looking for funds arriving in the destination wallet",
+      lifi: "Checking the bridge status",
+      inbound: "Looking for recent incoming transfers in your wallet",
+    },
+    pt: {
+      detect: "Procurando a transação nas cinco redes",
+      transaction: "Lendo a transação e o recibo",
+      diagnose: "Analisando o que a transação fez",
+      radar: "Procurando a chegada dos fundos na carteira de destino",
+      lifi: "Consultando o estado da ponte",
+      inbound: "Procurando entradas recentes na sua carteira",
+    },
+  };
   const BASIS_TEXT = { chain: "Verificado en la red", declared: "Lo que declaraste", inferred: "Inferido" };
   const OWNER_TEXT = { client: "De tu lado", provider: "Del lado del proveedor" };
   const isMobile = () => window.matchMedia("(max-width: 39.99em)").matches;
@@ -125,18 +144,28 @@
 
   // ───────────── Etapas ─────────────
   function renderIntro() {
+    const locale = K.getLocale();
+    const copy = locale === "en"
+      ? { lead: "What happened to your funds?", prose: "We’ll ask about the operation, provider and networks. Using your answers and, if available, the transaction hash, we’ll assess whether the operation went correctly and why funds did not arrive or are inaccessible.", start: "Start" }
+      : locale === "pt"
+      ? { lead: "O que aconteceu com seus fundos?", prose: "Faremos algumas perguntas sobre a operação, o provedor e as redes. Com suas respostas e, se disponível, o hash da transação, verificaremos se a operação foi feita corretamente e por que os fundos não chegaram ou não estão acessíveis.", start: "Começar" }
+      : { lead: "¿Qué pasó con tus fondos?", prose: "Te haremos unas preguntas sobre la operación, el proveedor y las redes. Con tus respuestas, y con la transacción si tienes su hash, revisamos si la operación se hizo bien y por qué los fondos no llegaron o no están accesibles.", start: "Empezar" };
     const keyNote = state.apiKey
       ? ""
+      : locale === "en"
+      ? `<p class="note">No Alchemy key is set yet. You can still use the evaluator: it will rely only on what you tell us. To verify the transaction on-chain, add a key in “Network connection”.</p>`
+      : locale === "pt"
+      ? `<p class="note">Ainda não há uma chave da Alchemy. Você pode usar o avaliador mesmo assim: ele se baseará apenas no que você informar. Para verificar a transação na rede, adicione uma chave em “Conexão de rede”.</p>`
       : `<p class="note">Todavía no hay una clave de Alchemy. Puedes usar el evaluador igual: solo se basará en lo que cuentes. Si quieres que además compruebe la transacción en la red, agrégala en «Conexión con la red».</p>`;
     return `<div class="intro">
-      <h1 class="lead" tabindex="-1" data-focus>¿Qué pasó con tus fondos?</h1>
-      <p class="prose">Te haremos unas preguntas sobre la operación, el proveedor y las redes. Con tus respuestas, y con la transacción si tienes su hash, revisamos si la operación se hizo bien y por qué los fondos no llegaron o no están accesibles.</p>
+      <h1 class="lead" tabindex="-1" data-focus>${copy.lead}</h1>
+      <p class="prose">${copy.prose}</p>
       <ul class="intro__list">
         <li><strong>Separamos lo verificado de lo declarado.</strong> Lo que se comprueba en la red se marca distinto de lo que tú cuentas.</li>
         <li><strong>Explicamos los conceptos cuando hacen falta.</strong> Red, hash, memo, approve: sin dar nada por sabido.</li>
         <li><strong>Si algo no se puede saber, lo decimos.</strong> No adivinamos ni atribuimos culpas sin evidencia.</li>
       </ul>
-      <div class="actions"><button type="button" class="btn" data-action="start">Empezar</button></div>
+      <div class="actions"><button type="button" class="btn" data-action="start">${copy.start}</button></div>
       ${keyNote}
     </div>`;
   }
@@ -146,10 +175,10 @@
     const mono = q.type === "address" || q.type === "hash" ? " mono" : "";
     const inputMode = q.type === "number" ? ' inputmode="decimal"' : "";
     return `<form class="qform" data-form="${esc(q.id)}" novalidate>
-      <label class="field" for="answer-input"><span class="field__label">Tu respuesta</span>
+      <label class="field" for="answer-input"><span class="field__label">${K.t("answer")}</span>
         <input id="answer-input" type="text" class="${mono.trim()}" value="${esc(prev)}" placeholder="${esc(q.placeholder || "")}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="${q.optional ? "next" : "done"}"${inputMode} aria-describedby="answer-error"></label>
       <p class="error" id="answer-error" role="alert"></p>
-      <div class="actions"><button type="submit" class="btn">Continuar</button>${q.optional ? '<button type="button" class="btn btn--quiet" data-skip>No sé / prefiero omitir</button>' : ""}</div>
+      <div class="actions"><button type="submit" class="btn">${K.t("continue")}</button>${q.optional ? `<button type="button" class="btn btn--quiet" data-skip>${K.t("unknownAnswer")}</button>` : ""}</div>
     </form>`;
   }
 
@@ -171,8 +200,8 @@
         : inputFor(q);
     return `<div class="question">
       ${flashHtml()}
-      ${answered > 0 ? '<p class="question__nav"><button type="button" class="backlink" data-action="prev">Volver a la pregunta anterior</button></p>' : ""}
-      <div class="progress"><span>Pregunta ${answered + 1} de ${total}</span><div class="progress__bar" role="progressbar" aria-label="Avance de la entrevista" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${answered}"><div class="progress__fill" data-fill="${total ? Math.round((answered / total) * 100) : 0}"></div></div></div>
+      ${answered > 0 ? `<p class="question__nav"><button type="button" class="backlink" data-action="prev">${K.t("back")}</button></p>` : ""}
+      <div class="progress"><span>${K.t("question")} ${answered + 1} ${K.t("of")} ${total}</span><div class="progress__bar" role="progressbar" aria-label="${K.t("question")}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${answered}"><div class="progress__fill" data-fill="${total ? Math.round((answered / total) * 100) : 0}"></div></div></div>
       <h1 class="question__prompt" id="q-prompt" tabindex="-1" data-focus>${esc(q.prompt(state.answers))}</h1>
       <p class="question__help">${esc(q.help(state.answers))}</p>
       ${options}
@@ -182,11 +211,17 @@
   }
 
   function renderReview() {
+    const locale = K.getLocale();
+    const text = locale === "en"
+      ? "Review what you told us in “What we've collected”; you can change any answer."
+      : locale === "pt"
+      ? "Revise o que você informou em «O que coletamos»; você pode alterar qualquer resposta."
+      : "Revisa lo que nos contaste en «Lo que llevamos»; puedes cambiar cualquier respuesta.";
     return `<div class="intro">
       ${flashHtml()}
-      <h1 class="lead" tabindex="-1" data-focus>Listo para evaluar</h1>
-      <p class="prose">Revisa lo que nos contaste en «Lo que llevamos»; puedes cambiar cualquier respuesta. ${
-        state.apiKey ? "Al evaluar, comprobaremos la transacción y la llegada de los fondos directamente en la red." : "Sin clave de Alchemy la evaluación se basará solo en lo que declaraste."
+      <h1 class="lead" tabindex="-1" data-focus>${K.t("ready")}</h1>
+      <p class="prose">${text} ${
+        state.apiKey ? "" : locale === "en" ? "Without an Alchemy key, the evaluation will rely only on what you declared." : locale === "pt" ? "Sem chave da Alchemy, a avaliação se baseará apenas no que você declarou." : "Sin clave de Alchemy la evaluación se basará solo en lo que declaraste."
       }</p>
       <div class="actions"><button type="button" class="btn" data-action="evaluate">Evaluar la operación</button><button type="button" class="btn btn--quiet" data-action="prev">Volver a la última pregunta</button>${state.apiKey ? "" : '<button type="button" class="btn btn--quiet" data-action="settings">Agregar clave de Alchemy</button>'}</div>
     </div>`;
@@ -196,7 +231,7 @@
     const items = state.steps
       .map((name, i) => {
         const active = i === state.steps.length - 1;
-        return `<li data-state="${active ? "active" : "done"}"><span class="steps__mark" aria-hidden="true">${active ? "…" : "✓"}</span><span>${esc(STEP_LABEL[name] || name)}</span></li>`;
+        return `<li data-state="${active ? "active" : "done"}"><span class="steps__mark" aria-hidden="true">${active ? "…" : "✓"}</span><span>${esc(STEP_LABELS[K.getLocale()][name] || name)}</span></li>`;
       })
       .join("");
     return `<div class="intro">
@@ -312,7 +347,7 @@
   function updateLinkStatus() {
     const button = $("#open-settings");
     button.dataset.state = state.apiKey ? "on" : "off";
-    $("#link-label").textContent = state.apiKey ? "Red conectada" : "Sin clave de Alchemy";
+    $("#link-label").textContent = state.apiKey ? K.t("networkConnected") : K.t("noKey");
   }
 
   // ───────────── Acciones ─────────────
@@ -387,7 +422,7 @@
             list.innerHTML = state.steps
               .map((s, i) => {
                 const active = i === state.steps.length - 1;
-                return `<li data-state="${active ? "active" : "done"}"><span class="steps__mark" aria-hidden="true">${active ? "…" : "✓"}</span><span>${esc(STEP_LABEL[s] || s)}</span></li>`;
+                return `<li data-state="${active ? "active" : "done"}"><span class="steps__mark" aria-hidden="true">${active ? "…" : "✓"}</span><span>${esc(STEP_LABELS[K.getLocale()][s] || s)}</span></li>`;
               })
               .join("");
           }
@@ -411,7 +446,7 @@
   }
 
   async function copyReport() {
-    const text = K.buildReport(state.answers, state.result, { links: explorerLinks() });
+    const text = K.buildReport(state.answers, state.result, { links: explorerLinks(), locale: K.getLocale() });
     let ok = false;
     try {
       await navigator.clipboard.writeText(text);
@@ -537,7 +572,26 @@
   }
 
   // ───────────── Arranque ─────────────
+  function applyDocumentTranslations() {
+    const locale = K.getLocale();
+    document.documentElement.lang = locale;
+    const select = $("#language-select");
+    if (select) {
+      select.value = locale;
+      select.setAttribute("aria-label", K.t("language"));
+    }
+    $$("[data-i18n]").forEach((el) => {
+      const key = el.dataset.i18n;
+      if (key === "settingsIntro") el.innerHTML = K.t(key);
+      else el.textContent = K.t(key);
+    });
+    $$("[data-i18n-placeholder]").forEach((el) => {
+      el.placeholder = K.t(el.dataset.i18nPlaceholder);
+    });
+  }
+
   function init() {
+    applyDocumentTranslations();
     loadKey();
     loadSession();
     $("#stage").addEventListener("click", onStageClick);
@@ -547,6 +601,12 @@
     $("#key-test").addEventListener("click", testKey);
     $("#key-clear").addEventListener("click", clearKey);
     $("#settings-form").addEventListener("submit", saveKey);
+    $("#language-select").addEventListener("change", (event) => {
+      K.setLocale(event.target.value);
+      applyDocumentTranslations();
+      render(true);
+      announce(K.t("language"));
+    });
     document.addEventListener("keydown", onKeydown);
     // Al imprimir, los apartados plegados se abren para que el informe salga completo.
     window.addEventListener("beforeprint", () => $$("details.fold").forEach((d) => { d.open = true; }));
