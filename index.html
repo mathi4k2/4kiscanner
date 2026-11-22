@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14252d" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://*.g.alchemy.com https://coins.llama.fi https://li.quest; base-uri 'none'; form-action 'none'">
+  <title>4kiscan · Evaluador de operaciones cripto</title>
+  <meta name="description" content="Responde unas preguntas sobre tu operación cripto y averigua si se hizo bien y por qué los fondos no llegaron o no están accesibles.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2312232c'/%3E%3Cpath d='M9 9h6v6H9zM17 17h6v6h-6z' fill='none' stroke='%237fd0f0' stroke-width='2.4'/%3E%3Cpath d='M15 12h5v5' fill='none' stroke='%237fd0f0' stroke-width='2.4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#stage">Saltar al contenido</a>
+
+  <header class="masthead">
+    <div class="masthead__inner">
+      <a class="brand" href="./" aria-label="4kiscan, inicio">
+        <svg class="brand__mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M9 9h6v6H9zM17 17h6v6h-6z"/><path d="M15 12h5v5"/></svg>
+        <span class="brand__name">4kiscan</span>
+      </a>
+      <p class="masthead__tag">Evaluador de operaciones cripto</p>
+      <button type="button" class="link-status" id="open-settings" aria-haspopup="dialog">
+        <span class="link-status__dot" id="link-dot" aria-hidden="true"></span>
+        <span id="link-label">Conexión con la red</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="layout" id="main">
+    <aside class="transcript" id="transcript" aria-label="Lo que llevamos hasta ahora" hidden></aside>
+    <section class="stage" id="stage" tabindex="-1"></section>
+    <div class="sr-only" id="live" role="status" aria-live="polite"></div>
+  </main>
+
+  <footer class="foot">
+    <p>4kiscan usa datos públicos de la red y lo que tú declaras. No ve los sistemas internos de exchanges ni de puentes, y no es asesoría legal ni financiera.</p>
+  </footer>
+
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form method="dialog" id="settings-form" class="settings">
+      <h2 id="settings-title">Conexión con la red</h2>
+      <p>Para comprobar qué pasó realmente con una transacción, 4kiscan consulta la red a través de <strong>Alchemy</strong>. Necesitas una clave gratuita (API key) de <a href="https://www.alchemy.com/" target="_blank" rel="noopener noreferrer">alchemy.com</a> con las redes Ethereum, Polygon, Optimism, Arbitrum y Base habilitadas.</p>
+      <label class="field" for="api-key">
+        <span class="field__label">Clave de Alchemy</span>
+        <input id="api-key" name="apiKey" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="done" placeholder="Pega tu clave aquí">
+      </label>
+      <label class="check">
+        <input id="remember-key" type="checkbox">
+        <span>Recordarla en este navegador</span>
+      </label>
+      <p class="note">La clave solo se envía a Alchemy, desde tu navegador. No pasa por ningún otro servidor. Si no marcas la casilla, se olvida al cerrar esta pestaña.</p>
+      <p class="settings__result" id="settings-result" role="status"></p>
+      <div class="actions">
+        <button type="button" class="btn btn--quiet" id="key-test">Probar clave</button>
+        <button type="button" class="btn btn--quiet" id="key-clear">Quitar clave</button>
+        <button type="submit" class="btn" value="save" id="key-save">Guardar</button>
+      </div>
+      <p class="note">Sin clave también puedes usar el evaluador: la conclusión se basará solo en lo que declares y lo indicará.</p>
+    </form>
+  </dialog>
+
+  <script src="js/util.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/rpc.js"></script>
+  <script src="js/concepts.js"></script>
+  <script src="js/providers.js"></script>
+  <script src="js/diagnose.js"></script>
+  <script src="js/radar.js"></script>
+  <script src="js/interview.js"></script>
+  <script src="js/evidence.js"></script>
+  <script src="js/evaluate.js"></script>
+  <script src="js/report.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
